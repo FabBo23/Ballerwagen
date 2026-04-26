@@ -95,7 +95,15 @@ void setupVeDirect() {
 
 void setupTempSensor() {
     sensors.begin();
-    sensors.setResolution(sensorDeviceAddress, 10);
+    // Adresse muss vor setResolution() geholt werden – sonst zeigt
+    // sensorDeviceAddress auf uninitialisierten Speicher.
+    if (sensors.getAddress(sensorDeviceAddress, 0)) {
+        sensors.setResolution(sensorDeviceAddress, 10);
+    } else {
+#ifndef HASP_RS485_ENABLED
+        if (Serial) Serial.println("WARN: Kein DS18B20 am OneWire-Bus gefunden.");
+#endif
+    }
 }
 
 // ========================= Konfiguration aus EEPROM laden =========================
