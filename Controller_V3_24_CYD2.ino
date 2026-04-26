@@ -138,8 +138,10 @@ WebServer server(80);
 
 // Der neue MQTT Task für Core 0
 void mqttTaskCode(void * pvParameters) {
+#ifndef HASP_RS485_ENABLED
   Serial.print("MQTT Task gestartet auf Core: ");
   Serial.println(xPortGetCoreID());
+#endif
 
   for(;;) {
     manageMqtt();
@@ -172,12 +174,16 @@ void setup() {
     lastSpeedCalcTime = millis();
     checkDeadmanSwitch();
 
+#ifndef HASP_RS485_ENABLED
     if (Serial) Serial.println("Setup abgeschlossen. Warte auf Aktionen...");
+#endif
 
   dataMutex = xSemaphoreCreateMutex();
 
   if (dataMutex != NULL) {
-    Serial.println("Erstelle MQTT Task auf Core 0...");
+#ifndef HASP_RS485_ENABLED
+    if (Serial) Serial.println("Erstelle MQTT Task auf Core 0...");
+#endif
     xTaskCreatePinnedToCore(
       mqttTaskCode, "TaskMQTT", 10000, NULL, 1, &TaskMQTT, 0);
   }
@@ -189,7 +195,9 @@ void setup() {
 
 // ========================= Loop =========================
 
-void loop() {
+    // Diagnose und Serial-Eingabe nur, wenn USB-Serial aktiv ist.
+    // Mit HASP_RS485_ENABLED ist Serial = RS485-Bus → kein Debug-Output, keine Eingabe!
+#ifndef HASP_RS485_ENABLED
     // --- Diagnose alle 10s ---
     static unsigned long lastDiagMs = 0;
     if (millis() - lastDiagMs > 10000UL) {
@@ -224,6 +232,7 @@ void loop() {
             serialBuf[serialPos++] = c;
         }
     }
+#endif
 
     // --- Hauptlogik ---
     manageMButton();

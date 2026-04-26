@@ -47,7 +47,9 @@ void getTemp() {
     sensors.requestTemperatures();
     tempC = sensors.getTempCByIndex(0);
     if (tempC == DEVICE_DISCONNECTED_C) {
+#ifndef HASP_RS485_ENABLED
         if (Serial) Serial.println("Temperatursensor nicht erreichbar");
+#endif
         tempC = 0;
     }
 }

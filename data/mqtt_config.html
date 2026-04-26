@@ -76,18 +76,18 @@
         </div>
 
         <label for="broker">Broker-Hostname <span style="font-weight:normal;color:var(--danger-color)">← NUR Hostname, KEIN Port!</span></label>
-        <input type="text" id="broker" placeholder="abc123.s1.eu.hivemq.cloud" maxlength="64">
-        <div class="hint">Beispiel: <code>abc123.s1.eu.hivemq.cloud</code> &nbsp;–&nbsp; Port wird unten separat eingetragen. Kein <code>http://</code> oder <code>:8883</code> hier!</div>
+        <input type="text" id="broker" placeholder="192.168.1.100" maxlength="64">
+        <div class="hint">Beispiel: <code>192.168.1.100</code> &nbsp;–&nbsp; Port wird unten separat eingetragen. Kein <code>http://</code> oder <code>:1883</code> hier!</div>
 
         <div class="row">
             <div>
                 <label for="port">Port:</label>
-                <input type="number" id="port" value="8883" min="1" max="65535">
+                <input type="number" id="port" value="1883" min="1" max="65535">
             </div>
             <div>
                 <label>&nbsp;</label>
                 <div style="padding:10px 0;font-size:0.85em;color:var(--text-muted)">
-                    8883 = TLS &nbsp;|&nbsp; 1883 = unverschlüsselt
+                    1883 = unverschlüsselt (Standard, nur Plain TCP unterstützt)
                 </div>
             </div>
         </div>
@@ -100,15 +100,7 @@
 
         <label for="topic">Basis-Topic:</label>
         <input type="text" id="topic" placeholder="bollerwagen" maxlength="32">
-        <div class="hint">Publish: <code>bollerwagen/speed</code>, Subscribe: <code>bollerwagen/cmd/speed</code></div>
-
-        <div class="toggle-row">
-            <div>
-                <div class="toggle-label">TLS-Zertifikat prüfen</div>
-                <div class="toggle-hint">Root-CA aus /mqtt_ca.crt auf LittleFS</div>
-            </div>
-            <label class="switch"><input type="checkbox" id="tls" checked><span class="slider"></span></label>
-        </div>
+        <div class="hint">Publish: <code>bollerwagen/state</code>, Subscribe: <code>bollerwagen/cmd/speed</code></div>
 
         <button class="btn btn-primary" onclick="saveConfig()">💾 Speichern &amp; Verbinden</button>
         <div id="feedback"></div>
@@ -126,17 +118,19 @@
                 <th style="text-align:left;padding:6px 8px">Richtung</th>
                 <th style="text-align:left;padding:6px 8px">Inhalt</th>
             </tr>
-            <tr><td style="padding:5px 8px"><code>.../speed</code></td>        <td>Publish</td><td>Geschwindigkeit km/h</td></tr>
-            <tr style="background:#f9f9f9"><td style="padding:5px 8px"><code>.../rpm_soll</code></td>   <td>Publish</td><td>Soll-Drehzahl %</td></tr>
-            <tr><td style="padding:5px 8px"><code>.../rpm_ist</code></td>    <td>Publish</td><td>Ist-Drehzahl %</td></tr>
-            <tr style="background:#f9f9f9"><td style="padding:5px 8px"><code>.../direction</code></td>  <td>Publish</td><td>F oder R</td></tr>
-            <tr><td style="padding:5px 8px"><code>.../deadman</code></td>    <td>Publish</td><td>1=aktiv, 0=inaktiv</td></tr>
-            <tr style="background:#f9f9f9"><td style="padding:5px 8px"><code>.../soc</code></td>        <td>Publish</td><td>Akkustand %</td></tr>
-            <tr><td style="padding:5px 8px"><code>.../status</code></td>     <td>Publish</td><td>online (retained)</td></tr>
-            <tr style="background:#f9f9f9"><td style="padding:5px 8px"><code>.../cmd/speed</code></td>  <td>Subscribe</td><td>0–100</td></tr>
-            <tr><td style="padding:5px 8px"><code>.../cmd/direction</code></td><td>Subscribe</td><td>F oder R</td></tr>
-            <tr style="background:#f9f9f9"><td style="padding:5px 8px"><code>.../cmd/horn</code></td>   <td>Subscribe</td><td>beliebig → Hupton</td></tr>
+            <tr><td style="padding:5px 8px"><code>.../state</code></td>      <td>Publish</td><td>Telemetrie-JSON (alle 3 s)</td></tr>
+            <tr style="background:#f9f9f9"><td style="padding:5px 8px"><code>.../status</code></td>     <td>Publish</td><td>online (retained, beim Connect)</td></tr>
+            <tr><td style="padding:5px 8px"><code>.../cmd/speed</code></td>  <td>Subscribe</td><td>0–100</td></tr>
+            <tr style="background:#f9f9f9"><td style="padding:5px 8px"><code>.../cmd/direction</code></td><td>Subscribe</td><td>F oder R</td></tr>
+            <tr><td style="padding:5px 8px"><code>.../cmd/horn</code></td>   <td>Subscribe</td><td>beliebig → Hupton</td></tr>
         </table>
+        <p style="font-size:0.85em;color:var(--text-muted);margin-top:12px">
+            <strong>state-JSON</strong>:
+            <code>speed</code>, <code>rpm_soll</code>, <code>rpm_ist</code>,
+            <code>direction</code>, <code>deadman</code>, <code>temperature</code>,
+            <code>soc</code>, <code>voltage</code>, <code>current</code>,
+            <code>power</code>, <code>energy_wh</code>
+        </p>
     </div>
 
     <a href="/" class="btn btn-secondary">← Zurück zur Steuerung</a>
@@ -150,10 +144,9 @@
             // Felder befüllen
             document.getElementById('enabled').checked = d.enabled;
             document.getElementById('broker').value    = d.broker || '';
-            document.getElementById('port').value      = d.port   || 8883;
+            document.getElementById('port').value      = d.port   || 1883;
             document.getElementById('user').value      = d.user   || '';
             document.getElementById('topic').value     = d.topic  || 'bollerwagen';
-            document.getElementById('tls').checked     = d.tls;
 
             // Status-Box
             const box = document.getElementById('mqtt-status');
@@ -184,8 +177,7 @@
             port:    document.getElementById('port').value,
             user:    document.getElementById('user').value,
             pass:    document.getElementById('pass').value,
-            topic:   document.getElementById('topic').value.trim(),
-            tls:     document.getElementById('tls').checked ? '1' : '0'
+            topic:   document.getElementById('topic').value.trim()
         });
 
         fetch('/save_mqtt', { method: 'POST', body })
