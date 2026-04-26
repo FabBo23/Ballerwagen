@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bollerwagen Steuerung</title>
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --secondary-color: #6c757d;
+            --background-color: #f8f9fa;
+            --card-background: #ffffff;
+            --text-color: #343a40;
+            --text-muted: #6c757d;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --info-color: #17a2b8;
+            --border-radius: 8px;
+            --box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--background-color);
+            margin: 0; padding: 15px;
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+        .container { max-width: 800px; margin: 20px auto; padding: 0 15px; }
+        h1 { color: var(--primary-color); text-align: center; margin-bottom: 25px; }
+        h2 { color: var(--primary-color); margin-bottom: 20px; margin-top: 0; }
+        .card {
+            background-color: var(--card-background);
+            padding: 25px; border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow); margin-bottom: 25px; overflow: hidden;
+        }
+        .collapsible-header {
+            cursor: pointer; display: flex;
+            justify-content: space-between; align-items: center;
+            padding-bottom: 15px; border-bottom: 1px solid #eee; margin-bottom: 20px;
+        }
+        .collapsible-header h2 { margin-bottom: 0; }
+        .collapsible-header::after { content: 'V'; font-size: 0.8em; color: var(--secondary-color); transition: transform 0.3s ease; }
+        .collapsible-header.collapsed::after { transform: rotate(-90deg); }
+        .collapsible-content { max-height: 1000px; transition: max-height 0.4s ease-in-out, visibility 0s linear 0s, opacity 0.4s ease; overflow: hidden; visibility: visible; opacity: 1; }
+        .collapsible-content.collapsed { max-height: 0; visibility: hidden; opacity: 0; transition: max-height 0.4s ease-in-out, visibility 0s linear 0.4s, opacity 0.4s ease; }
+        .data-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; }
+        .data-item { background-color: #f1f3f5; padding: 15px; border-radius: 6px; text-align: center; }
+        .data-item .label { display: block; font-size: 0.9em; color: var(--text-muted); margin-bottom: 5px; }
+        .data-item .value { font-size: 1.4em; font-weight: bold; color: var(--primary-color); }
+        .data-item .unit  { font-size: 0.9em; color: var(--text-muted); margin-left: 3px; }
+        .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; align-items: center; text-align: center; }
+        button, .button-link {
+            background-color: var(--primary-color); color: white; border: none;
+            padding: 10px 15px; text-align: center; text-decoration: none;
+            display: inline-block; font-size: 0.85em; margin: 4px; cursor: pointer;
+            border-radius: var(--border-radius);
+            transition: background-color 0.3s ease, transform 0.1s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); width: auto;
+        }
+        button:hover, .button-link:hover { background-color: #0056b3; }
+        button:active { transform: scale(0.98); }
+        .button-secondary { background-color: var(--secondary-color); }
+        .button-secondary:hover { background-color: #5a6268; }
+        .button-warning  { background-color: var(--warning-color); color: #212529; }
+        .button-warning:hover { background-color: #e0a800; }
+        .button-speed    { background-color: var(--info-color); }
+        .button-speed:hover { background-color: #138496; }
+        .button-dashboard { background-color: var(--success-color); }
+        .button-dashboard:hover { background-color: #1e7e34; }
+        .button-wifi { background-color: #6f42c1; }
+        .button-wifi:hover { background-color: #5a32a3; }
+        .button-mqtt { background-color: #e67e00; }
+        .button-mqtt:hover { background-color: #b86200; }
+        .status-indicator { display: inline-block; padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 0.9em; }
+        .status-on  { background-color: var(--success-color); color: white; }
+        .status-off { background-color: var(--danger-color);  color: white; }
+        a { color: var(--primary-color); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .footer { text-align: center; margin-top: 30px; font-size: 0.9em; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Bollerwagen Steuerung</h1>
+
+    <div class="card">
+        <div class="collapsible-header" id="controls-header"><h2>Steuerung &amp; Info</h2></div>
+        <div class="collapsible-content" id="controls-content">
+            <div class="controls-grid">
+                <button class="button-speed"    onclick="changeSpeed(-1)">Speed −</button>
+                <button class="button-speed"    onclick="changeSpeed(1)">Speed +</button>
+                <button onclick="setDirection('R')">Rückwärts</button>
+                <button onclick="setDirection('F')">Vorwärts</button>
+                <button onclick="triggerHorn()" class="button-warning">Hupe</button>
+                <a href="/config"    class="button-link button-secondary">Konfig</a>
+                <a href="/dashboard" class="button-link button-dashboard">Dashboard</a>
+                <a href="/wifi"      class="button-link button-wifi">WLAN</a>
+                <a href="/mqtt"      class="button-link button-mqtt">MQTT</a>
+                <a href="/ota"       class="button-link" style="background-color:#6c757d">OTA Update</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Aktueller Status</h2>
+        <div class="data-grid">
+            <div class="data-item"><span class="label">Soll-Drehzahl</span>  <span class="value" id="sollwert">--</span><span class="unit">%</span></div>
+            <div class="data-item"><span class="label">Ist-Drehzahl</span>   <span class="value" id="istwert">--</span><span class="unit">%</span></div>
+            <div class="data-item"><span class="label">Geschwindigkeit</span><span class="value" id="geschwindigkeit_real">--</span><span class="unit">km/h</span></div>
+            <div class="data-item"><span class="label">Ladezustand</span>    <span class="value" id="ladezustand">--</span><span class="unit">%</span></div>
+            <div class="data-item"><span class="label">Strom</span>          <span class="value" id="strom">--</span><span class="unit">mA</span></div>
+            <div class="data-item"><span class="label">Spannung</span>       <span class="value" id="spannung">--</span><span class="unit">mV</span></div>
+            <div class="data-item"><span class="label">Richtung Vorwärts</span>  <span class="value status-indicator" id="richtung_vorwaerts">--</span></div>
+            <div class="data-item"><span class="label">Richtung Rückwärts</span> <span class="value status-indicator" id="richtung_rueckwaerts">--</span></div>
+            <div class="data-item"><span class="label">Totmannschalter</span><span class="value status-indicator" id="deadman_status">--</span></div>
+            <div class="data-item"><span class="label">Temperatur</span>     <span class="value" id="temperature">--</span><span class="unit">°C</span></div>
+        </div>
+    </div>
+
+    <div class="footer">Bolla Bar</div>
+</div>
+
+<script>
+    // Collapsible
+    const collapsibleHeader  = document.getElementById('controls-header');
+    const collapsibleContent = document.getElementById('controls-content');
+    if (collapsibleHeader && collapsibleContent) {
+        collapsibleHeader.addEventListener('click', () => {
+            collapsibleContent.classList.toggle('collapsed');
+            collapsibleHeader.classList.toggle('collapsed');
+        });
+    }
+
+    // Polling: 3 Sekunden statt 1 Sekunde.
+    // Weniger Requests = weniger gleichzeitige TCP-Verbindungen = weniger RAM-Druck.
+    function scheduleUpdate() { setTimeout(updateData, 2000); }
+
+    function updateData() {
+        const ctrl = new AbortController();
+        const tOut = setTimeout(() => ctrl.abort(), 3000);
+        fetch('/get_data', { signal: ctrl.signal })
+            .then(r => r.text())
+            .then(data => {
+                clearTimeout(tOut);
+                const v = data.split(',');
+                if (v.length >= 10) {
+                    document.getElementById('geschwindigkeit_real').textContent = parseFloat(v[0]).toFixed(1);
+                    document.getElementById('ladezustand').textContent = v[1];
+                    document.getElementById('sollwert').textContent    = v[2];
+                    updateStatusIndicator('richtung_vorwaerts',  v[3] === '1');
+                    updateStatusIndicator('richtung_rueckwaerts',v[4] === '1');
+                    document.getElementById('strom').textContent    = v[5];
+                    document.getElementById('istwert').textContent  = v[6];
+                    document.getElementById('spannung').textContent = v[7];
+                    const dm = document.getElementById('deadman_status');
+                    if (dm) {
+                        dm.textContent  = v[8] === '1' ? 'Aktiv (Freigabe)' : 'Inaktiv (Gesperrt)';
+                        dm.className    = 'status-indicator ' + (v[8] === '1' ? 'status-on' : 'status-off');
+                    }
+                    document.getElementById('temperature').textContent = v[9];
+                }
+            })
+            .catch(e => { clearTimeout(tOut); if (e.name !== 'AbortError') console.error('Fehler /get_data:', e); })
+            .finally(scheduleUpdate);
+    }
+
+    function updateStatusIndicator(id, isOn) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.textContent = isOn ? 'Aktiv' : 'Inaktiv';
+            el.className   = 'status-indicator ' + (isOn ? 'status-on' : 'status-off');
+        }
+    }
+
+    function setDirection(dir) {
+        // Kein sofortiges updateData() nach Befehlen – das Polling (alle 3s) übernimmt.
+        // Sonst: Befehl + sofortiger Daten-Request = 2 gleichzeitige TCP-Verbindungen.
+        fetch('/set_direction?direction=' + dir).catch(e => console.error(e));
+    }
+
+    function changeSpeed(step) {
+        fetch('/change_speed?step=' + step).catch(e => console.error(e));
+    }
+
+    function triggerHorn() {
+        fetch('/horn').catch(e => console.error(e));
+    }
+
+    updateData();
+</script>
+</body>
+</html>

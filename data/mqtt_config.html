@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT-Einstellungen – Bollerwagen</title>
+    <style>
+        :root {
+            --primary-color: #e67e00; --secondary-color: #6c757d;
+            --background-color: #f8f9fa; --card-background: #ffffff;
+            --text-color: #343a40; --text-muted: #6c757d;
+            --success-color: #28a745; --danger-color: #dc3545;
+            --border-radius: 8px; --box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background-color: var(--background-color); margin:0; padding:15px; color:var(--text-color); line-height:1.6; }
+        .container { max-width: 600px; margin: 20px auto; padding: 0 15px; }
+        h1 { color: var(--primary-color); text-align: center; margin-bottom: 10px; }
+        h2 { color: var(--primary-color); margin-bottom: 15px; font-size: 1.1em; }
+        .card { background-color: var(--card-background); padding: 25px; border-radius: var(--border-radius); box-shadow: var(--box-shadow); margin-bottom: 20px; }
+        label { display: block; margin-bottom: 6px; font-weight: bold; font-size: 0.9em; }
+        input[type='text'], input[type='password'], input[type='number'] {
+            width: 100%; padding: 10px; margin-bottom: 16px;
+            border: 1px solid #ced4da; border-radius: 6px;
+            box-sizing: border-box; font-size: 1em;
+        }
+        .row { display: flex; gap: 12px; }
+        .row > div { flex: 1; }
+        .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; margin-bottom: 14px; }
+        .toggle-row:last-of-type { border-bottom: none; }
+        .toggle-label { font-weight: bold; font-size: 0.9em; }
+        .toggle-hint  { font-size: 0.8em; color: var(--text-muted); }
+        /* Toggle Switch */
+        .switch { position: relative; display: inline-block; width: 48px; height: 26px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top:0; left:0; right:0; bottom:0; background-color: #ccc; border-radius: 26px; transition: .3s; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: .3s; }
+        input:checked + .slider { background-color: var(--primary-color); }
+        input:checked + .slider:before { transform: translateX(22px); }
+        /* Status box */
+        .status-box { padding: 12px 16px; border-radius: 6px; margin-bottom: 15px; font-size: 0.95em; border-left: 4px solid transparent; }
+        .status-connected    { background-color: #d4edda; border-color: var(--success-color); color: #155724; }
+        .status-disconnected { background-color: #f8d7da; border-color: var(--danger-color);  color: #721c24; }
+        .status-disabled     { background-color: #e2e3e5; border-color: #6c757d;              color: #383d41; }
+        .status-loading      { background-color: #e2e3e5; border-color: #6c757d;              color: #383d41; }
+        /* Buttons */
+        .btn { display: inline-block; padding: 10px 20px; border: none; border-radius: var(--border-radius); cursor: pointer; font-size: 0.9em; text-decoration: none; margin: 4px; }
+        .btn-primary   { background-color: var(--primary-color);   color: white; }
+        .btn-primary:hover   { background-color: #b86200; }
+        .btn-secondary { background-color: var(--secondary-color); color: white; }
+        .btn-secondary:hover { background-color: #5a6268; }
+        #feedback { margin-top: 10px; font-weight: bold; min-height: 1.4em; }
+        .hint { font-size: 0.82em; color: var(--text-muted); margin-top: -12px; margin-bottom: 14px; }
+        a { color: var(--primary-color); }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🔌 MQTT-Einstellungen</h1>
+
+    <!-- Status -->
+    <div class="card">
+        <h2>Aktueller Status</h2>
+        <div id="mqtt-status" class="status-box status-loading">Lade Status…</div>
+    </div>
+
+    <!-- Konfiguration -->
+    <div class="card">
+        <h2>Verbindung</h2>
+
+        <div class="toggle-row">
+            <div>
+                <div class="toggle-label">MQTT aktiviert</div>
+                <div class="toggle-hint">Verbindung beim Start herstellen</div>
+            </div>
+            <label class="switch"><input type="checkbox" id="enabled"><span class="slider"></span></label>
+        </div>
+
+        <label for="broker">Broker-Hostname <span style="font-weight:normal;color:var(--danger-color)">← NUR Hostname, KEIN Port!</span></label>
+        <input type="text" id="broker" placeholder="abc123.s1.eu.hivemq.cloud" maxlength="64">
+        <div class="hint">Beispiel: <code>abc123.s1.eu.hivemq.cloud</code> &nbsp;–&nbsp; Port wird unten separat eingetragen. Kein <code>http://</code> oder <code>:8883</code> hier!</div>
+
+        <div class="row">
+            <div>
+                <label for="port">Port:</label>
+                <input type="number" id="port" value="8883" min="1" max="65535">
+            </div>
+            <div>
+                <label>&nbsp;</label>
+                <div style="padding:10px 0;font-size:0.85em;color:var(--text-muted)">
+                    8883 = TLS &nbsp;|&nbsp; 1883 = unverschlüsselt
+                </div>
+            </div>
+        </div>
+
+        <label for="user">Benutzername <span style="font-weight:normal;color:var(--text-muted)">(leer = kein Auth)</span>:</label>
+        <input type="text" id="user" placeholder="optional" maxlength="32" autocomplete="off">
+
+        <label for="pass">Passwort:</label>
+        <input type="password" id="pass" placeholder="optional" maxlength="32" autocomplete="off">
+
+        <label for="topic">Basis-Topic:</label>
+        <input type="text" id="topic" placeholder="bollerwagen" maxlength="32">
+        <div class="hint">Publish: <code>bollerwagen/speed</code>, Subscribe: <code>bollerwagen/cmd/speed</code></div>
+
+        <div class="toggle-row">
+            <div>
+                <div class="toggle-label">TLS-Zertifikat prüfen</div>
+                <div class="toggle-hint">Root-CA aus /mqtt_ca.crt auf LittleFS</div>
+            </div>
+            <label class="switch"><input type="checkbox" id="tls" checked><span class="slider"></span></label>
+        </div>
+
+        <button class="btn btn-primary" onclick="saveConfig()">💾 Speichern &amp; Verbinden</button>
+        <div id="feedback"></div>
+    </div>
+
+    <!-- Topics Übersicht -->
+    <div class="card">
+        <h2>Topics</h2>
+        <p style="font-size:0.88em;color:var(--text-muted);margin-top:0">
+            Alle Topics relativ zum Basis-Topic (z.B. <strong>bollerwagen</strong>):
+        </p>
+        <table style="width:100%;font-size:0.88em;border-collapse:collapse">
+            <tr style="background:#f1f3f5">
+                <th style="text-align:left;padding:6px 8px">Topic</th>
+                <th style="text-align:left;padding:6px 8px">Richtung</th>
+                <th style="text-align:left;padding:6px 8px">Inhalt</th>
+            </tr>
+            <tr><td style="padding:5px 8px"><code>.../speed</code></td>        <td>Publish</td><td>Geschwindigkeit km/h</td></tr>
+            <tr style="background:#f9f9f9"><td style="padding:5px 8px"><code>.../rpm_soll</code></td>   <td>Publish</td><td>Soll-Drehzahl %</td></tr>
+            <tr><td style="padding:5px 8px"><code>.../rpm_ist</code></td>    <td>Publish</td><td>Ist-Drehzahl %</td></tr>
+            <tr style="background:#f9f9f9"><td style="padding:5px 8px"><code>.../direction</code></td>  <td>Publish</td><td>F oder R</td></tr>
+            <tr><td style="padding:5px 8px"><code>.../deadman</code></td>    <td>Publish</td><td>1=aktiv, 0=inaktiv</td></tr>
+            <tr style="background:#f9f9f9"><td style="padding:5px 8px"><code>.../soc</code></td>        <td>Publish</td><td>Akkustand %</td></tr>
+            <tr><td style="padding:5px 8px"><code>.../status</code></td>     <td>Publish</td><td>online (retained)</td></tr>
+            <tr style="background:#f9f9f9"><td style="padding:5px 8px"><code>.../cmd/speed</code></td>  <td>Subscribe</td><td>0–100</td></tr>
+            <tr><td style="padding:5px 8px"><code>.../cmd/direction</code></td><td>Subscribe</td><td>F oder R</td></tr>
+            <tr style="background:#f9f9f9"><td style="padding:5px 8px"><code>.../cmd/horn</code></td>   <td>Subscribe</td><td>beliebig → Hupton</td></tr>
+        </table>
+    </div>
+
+    <a href="/" class="btn btn-secondary">← Zurück zur Steuerung</a>
+</div>
+
+<script>
+    // Status laden
+    fetch('/get_mqtt_status')
+        .then(r => r.json())
+        .then(d => {
+            // Felder befüllen
+            document.getElementById('enabled').checked = d.enabled;
+            document.getElementById('broker').value    = d.broker || '';
+            document.getElementById('port').value      = d.port   || 8883;
+            document.getElementById('user').value      = d.user   || '';
+            document.getElementById('topic').value     = d.topic  || 'bollerwagen';
+            document.getElementById('tls').checked     = d.tls;
+
+            // Status-Box
+            const box = document.getElementById('mqtt-status');
+            if (!d.enabled) {
+                box.className   = 'status-box status-disabled';
+                box.textContent = 'MQTT deaktiviert.';
+            } else if (d.connected) {
+                box.className   = 'status-box status-connected';
+                box.innerHTML   = '✓ Verbunden mit <strong>' + escHtml(d.broker) + ':' + d.port + '</strong>'
+                                + ' &nbsp;|&nbsp; Topic: <strong>' + escHtml(d.topic) + '</strong>';
+            } else {
+                box.className   = 'status-box status-disconnected';
+                box.innerHTML   = '✗ Nicht verbunden &nbsp;(' + escHtml(d.broker) + ':' + d.port + ')';
+            }
+        })
+        .catch(() => {
+            document.getElementById('mqtt-status').textContent = 'Status konnte nicht geladen werden.';
+        });
+
+    function saveConfig() {
+        const fb = document.getElementById('feedback');
+        fb.style.color  = '#6c757d';
+        fb.textContent  = 'Speichere…';
+
+        const body = new URLSearchParams({
+            enabled: document.getElementById('enabled').checked ? '1' : '0',
+            broker:  document.getElementById('broker').value.trim(),
+            port:    document.getElementById('port').value,
+            user:    document.getElementById('user').value,
+            pass:    document.getElementById('pass').value,
+            topic:   document.getElementById('topic').value.trim(),
+            tls:     document.getElementById('tls').checked ? '1' : '0'
+        });
+
+        fetch('/save_mqtt', { method: 'POST', body })
+            .then(r => r.text())
+            .then(msg => {
+                fb.style.color  = '#28a745';
+                fb.textContent  = '✓ Gespeichert! Verbindung wird neu aufgebaut.';
+                setTimeout(() => location.reload(), 2000);
+            })
+            .catch(e => {
+                fb.style.color  = '#dc3545';
+                fb.textContent  = 'Fehler: ' + e;
+            });
+    }
+
+    function escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+</script>
+</body>
+</html>

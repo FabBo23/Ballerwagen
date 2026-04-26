@@ -1,0 +1,51 @@
+{"page":1,"id":0,"obj":"scr","bg_color":"#0d1117"}
+{"page":1,"id":1,"obj":"label","x":0,"y":0,"w":320,"h":24,"text":"BOLLERWAGEN","text_font":16,"align":"center","text_color":"#00d4ff","bg_color":"#161b22","border_width":0}
+{"page":1,"id":2,"obj":"label","x":4,"y":28,"w":148,"h":96,"text":"0.0","text_font":48,"align":"center","text_color":"#00ff88","bg_color":"#0d2018","radius":10,"border_width":1,"border_color":"#00ff88"}
+{"page":1,"id":3,"obj":"label","x":4,"y":126,"w":148,"h":14,"text":"km/h","text_font":12,"align":"center","text_color":"#336644","bg_color":"#0d1117","border_width":0}
+{"page":1,"id":4,"obj":"label","x":158,"y":30,"w":50,"h":13,"text":"AKKU","text_font":12,"align":"left","text_color":"#556677","bg_color":"#0d1117","border_width":0}
+{"page":1,"id":5,"obj":"bar","x":158,"y":45,"w":116,"h":14,"min":0,"max":100,"val":75,"bg_color":"#1a2233","indicator_color":"#00d4ff","border_color":"#243048","border_width":1,"radius":4}
+{"page":1,"id":6,"obj":"label","x":278,"y":43,"w":38,"h":18,"text":"75%","text_font":12,"align":"right","text_color":"#00d4ff","bg_color":"#0d1117","border_width":0}
+{"page":1,"id":7,"obj":"label","x":158,"y":64,"w":70,"h":13,"text":"DREHZAHL","text_font":12,"align":"left","text_color":"#556677","bg_color":"#0d1117","border_width":0}
+{"page":1,"id":8,"obj":"bar","x":158,"y":79,"w":116,"h":14,"min":0,"max":100,"val":0,"bg_color":"#1a2233","indicator_color":"#ff8800","border_color":"#243048","border_width":1,"radius":4}
+{"page":1,"id":9,"obj":"label","x":278,"y":77,"w":38,"h":18,"text":"0%","text_font":12,"align":"right","text_color":"#ff8800","bg_color":"#0d1117","border_width":0}
+{"page":1,"id":10,"obj":"label","x":158,"y":98,"w":50,"h":13,"text":"STROM","text_font":12,"align":"left","text_color":"#556677","bg_color":"#0d1117","border_width":0}
+{"page":1,"id":11,"obj":"label","x":158,"y":113,"w":158,"h":26,"text":"0.00 A","text_font":16,"align":"right","text_color":"#ff4455","bg_color":"#0d1117","border_width":0}
+{"page":1,"id":20,"obj":"btn","x":4,"y":148,"w":106,"h":38,"text":"VORWAERTS","text_font":14,"align":"center","bg_color":"#003d1a","text_color":"#00ff88","border_color":"#00ff88","border_width":2,"radius":8}
+{"page":1,"id":21,"obj":"btn","x":114,"y":148,"w":106,"h":38,"text":"RUECKWAERTS","text_font":14,"align":"center","bg_color":"#161b22","text_color":"#33333a","border_color":"#252530","border_width":2,"radius":8}
+{"page":1,"id":12,"obj":"label","x":224,"y":148,"w":92,"h":38,"text":"TOTMANN!","text_font":12,"align":"center","text_color":"#ffffff","bg_color":"#6b0000","radius":8,"border_width":0}
+{"page":1,"id":30,"obj":"btn","x":4,"y":194,"w":106,"h":26,"text":"STEUERN","text_font":12,"align":"center","bg_color":"#161b22","text_color":"#aaaaaa","border_color":"#30363d","border_width":1,"radius":6,"action":"p2"}
+{"page":1,"id":31,"obj":"btn","x":114,"y":194,"w":106,"h":26,"text":"DATEN","text_font":12,"align":"center","bg_color":"#161b22","text_color":"#aaaaaa","border_color":"#30363d","border_width":1,"radius":6,"action":"p3"}
+{"page":2,"id":0,"obj":"scr","bg_color":"#0d1117"}
+{"page":2,"id":1,"obj":"label","x":0,"y":0,"w":320,"h":24,"text":"STEUERUNG","text_font":16,"align":"center","text_color":"#ff8800","bg_color":"#161b22","border_width":0}
+{"page":2,"id":10,"obj":"btn","x":4,"y":28,"w":76,"h":50,"text":"-","text_font":32,"align":"center","bg_color":"#2a0e00","text_color":"#ff8800","border_color":"#ff8800","border_width":2,"radius":8}
+{"page":2,"id":2,"obj":"label","x":84,"y":28,"w":152,"h":50,"text":"0","text_font":32,"align":"center","text_color":"#ff8800","bg_color":"#1a1200","radius":8,"border_width":2,"border_color":"#ff8800"}
+{"page":2,"id":11,"obj":"btn","x":240,"y":28,"w":76,"h":50,"text":"+","text_font":32,"align":"center","bg_color":"#001a0a","text_color":"#00ff88","border_color":"#00ff88","border_width":2,"radius":8}
+{"page":2,"id":3,"obj":"label","x":84,"y":80,"w":152,"h":14,"text":"SOLLWERT %","text_font":12,"align":"center","text_color":"#556677","bg_color":"#0d1117","border_width":0}
+{"page":2,"id":12,"obj":"btn","x":50,"y":99,"w":220,"h":34,"text":"STOP","text_font":20,"align":"center","bg_color":"#4a0000","text_color":"#ffffff","border_color":"#ff0000","border_width":2,"radius":8}
+{"page":2,"id":20,"obj":"btn","x":4,"y":138,"w":152,"h":42,"text":"VORWAERTS","text_font":14,"align":"center","bg_color":"#003d1a","text_color":"#00ff88","border_color":"#00ff88","border_width":2,"radius":8}
+{"page":2,"id":21,"obj":"btn","x":160,"y":138,"w":156,"h":42,"text":"RUECKWAERTS","text_font":14,"align":"center","bg_color":"#1a1200","text_color":"#ffdd00","border_color":"#ffdd00","border_width":2,"radius":8}
+{"page":2,"id":30,"obj":"btn","x":4,"y":185,"w":312,"h":30,"text":"HUPE","text_font":20,"align":"center","bg_color":"#2a000e","text_color":"#ff6688","border_color":"#ff0044","border_width":2,"radius":8}
+{"page":2,"id":40,"obj":"btn","x":4,"y":218,"w":152,"h":20,"text":"< DASHBOARD","text_font":12,"align":"center","bg_color":"#161b22","text_color":"#aaaaaa","border_color":"#30363d","border_width":1,"radius":6,"action":"p1"}
+{"page":2,"id":41,"obj":"btn","x":160,"y":218,"w":156,"h":20,"text":"DATEN >","text_font":12,"align":"center","bg_color":"#161b22","text_color":"#aaaaaa","border_color":"#30363d","border_width":1,"radius":6,"action":"p3"}
+{"page":3,"id":0,"obj":"scr","bg_color":"#0d1117"}
+{"page":3,"id":1,"obj":"label","x":0,"y":0,"w":320,"h":24,"text":"ELEKTRISCHE DATEN","text_font":16,"align":"center","text_color":"#00d4ff","bg_color":"#161b22","border_width":0}
+{"page":3,"id":10,"obj":"obj","x":4,"y":28,"w":100,"h":84,"bg_color":"#161b22","radius":8,"border_color":"#243048","border_width":1}
+{"page":3,"id":11,"obj":"label","x":4,"y":32,"w":100,"h":16,"text":"SPANNUNG","text_font":12,"align":"center","text_color":"#556677","bg_color":"#00000000","border_width":0}
+{"page":3,"id":12,"obj":"label","x":4,"y":50,"w":100,"h":38,"text":"0.00 V","text_font":20,"align":"center","text_color":"#00d4ff","bg_color":"#00000000","border_width":0}
+{"page":3,"id":20,"obj":"obj","x":110,"y":28,"w":100,"h":84,"bg_color":"#161b22","radius":8,"border_color":"#243048","border_width":1}
+{"page":3,"id":21,"obj":"label","x":110,"y":32,"w":100,"h":16,"text":"STROM","text_font":12,"align":"center","text_color":"#556677","bg_color":"#00000000","border_width":0}
+{"page":3,"id":22,"obj":"label","x":110,"y":50,"w":100,"h":38,"text":"0.00 A","text_font":20,"align":"center","text_color":"#ff8800","bg_color":"#00000000","border_width":0}
+{"page":3,"id":30,"obj":"obj","x":216,"y":28,"w":100,"h":84,"bg_color":"#161b22","radius":8,"border_color":"#243048","border_width":1}
+{"page":3,"id":31,"obj":"label","x":216,"y":32,"w":100,"h":16,"text":"LEISTUNG","text_font":12,"align":"center","text_color":"#556677","bg_color":"#00000000","border_width":0}
+{"page":3,"id":32,"obj":"label","x":216,"y":50,"w":100,"h":38,"text":"0.0 W","text_font":20,"align":"center","text_color":"#ff4455","bg_color":"#00000000","border_width":0}
+{"page":3,"id":40,"obj":"obj","x":4,"y":118,"w":100,"h":84,"bg_color":"#161b22","radius":8,"border_color":"#243048","border_width":1}
+{"page":3,"id":41,"obj":"label","x":4,"y":122,"w":100,"h":16,"text":"VERBRAUCH","text_font":12,"align":"center","text_color":"#556677","bg_color":"#00000000","border_width":0}
+{"page":3,"id":42,"obj":"label","x":4,"y":140,"w":100,"h":38,"text":"0.0 Wh","text_font":20,"align":"center","text_color":"#cc88ff","bg_color":"#00000000","border_width":0}
+{"page":3,"id":50,"obj":"obj","x":110,"y":118,"w":100,"h":84,"bg_color":"#161b22","radius":8,"border_color":"#243048","border_width":1}
+{"page":3,"id":51,"obj":"label","x":110,"y":122,"w":100,"h":16,"text":"TEMPERATUR","text_font":12,"align":"center","text_color":"#556677","bg_color":"#00000000","border_width":0}
+{"page":3,"id":52,"obj":"label","x":110,"y":140,"w":100,"h":38,"text":"0.0 C","text_font":20,"align":"center","text_color":"#ffdd00","bg_color":"#00000000","border_width":0}
+{"page":3,"id":60,"obj":"obj","x":216,"y":118,"w":100,"h":84,"bg_color":"#161b22","radius":8,"border_color":"#243048","border_width":1}
+{"page":3,"id":61,"obj":"label","x":216,"y":122,"w":100,"h":16,"text":"AKKU","text_font":12,"align":"center","text_color":"#556677","bg_color":"#00000000","border_width":0}
+{"page":3,"id":62,"obj":"label","x":216,"y":140,"w":100,"h":38,"text":"0 %","text_font":20,"align":"center","text_color":"#00ff88","bg_color":"#00000000","border_width":0}
+{"page":3,"id":70,"obj":"btn","x":4,"y":208,"w":152,"h":28,"text":"< STEUERUNG","text_font":12,"align":"center","bg_color":"#161b22","text_color":"#aaaaaa","border_color":"#30363d","border_width":1,"radius":6,"action":"p2"}
+{"page":3,"id":71,"obj":"btn","x":164,"y":208,"w":152,"h":28,"text":"DASHBOARD >","text_font":12,"align":"center","bg_color":"#161b22","text_color":"#aaaaaa","border_color":"#30363d","border_width":1,"radius":6,"action":"p1"}
