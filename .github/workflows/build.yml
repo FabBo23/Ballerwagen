@@ -1,0 +1,95 @@
+name: Build ESP32 Firmware
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ created ]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # nur für die Release-Asset-Anhängung benötigt
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # arduino-cli erwartet, dass der Sketch-Ordner genauso heißt wie die .ino-Datei.
+      # Da alles im Repo-Root liegt, wird hier ein temporärer Unterordner angelegt.
+      - name: Arduino-Verzeichnisstruktur herstellen
+        run: |
+          mkdir -p sketch/Controller_V3_24_CYD2
+          cp Controller_V3_24_CYD2.ino config.h motor.h vedirect.h mqtt.h \
+             http_handlers.h setup_helpers.h hasp_rs485.h \
+             sketch/Controller_V3_24_CYD2/
+
+      - name: arduino-cli installieren
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: ESP32-Plattform registrieren
+        run: |
+          # --overwrite, damit ein vorhandenes arduino-cli.yaml kein Fehler ist
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls \
+            https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+
+      - name: Bibliotheken installieren
+        run: |
+          # Eindeutige Namen verwenden, sonst fragt arduino-cli interaktiv nach
+          arduino-cli lib install "PubSubClient"
+          arduino-cli lib install "OneWire"
+          arduino-cli lib install "DallasTemperature"
+
+      - name: Firmware kompilieren
+        run: |
+          # Ohne explizites PartitionScheme – die Board-Defaults reichen für
+          # die ~50 KB Web-UI auf LittleFS und sind über alle ESP32-Core-Versionen stabil.
+          arduino-cli compile \
+            --fqbn esp32:esp32:esp32 \
+            --output-dir build \
+            sketch/Controller_V3_24_CYD2
+
+      - name: Versions-Tag ermitteln
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Firmware-Datei umbenennen
+        run: |
+          # Tatsächliches .bin per find suchen – arduino-cli-Versionen haben unterschiedliche Suffixe
+          src=$(find build -maxdepth 2 -name 'Controller_V3_24_CYD2.ino.bin' | head -n 1)
+          if [[ -z "$src" ]]; then
+            echo "Konnte keine .bin-Datei in build/ finden:" >&2
+            find build -type f >&2
+            exit 1
+          fi
+          dst="build/bollerwagen-${{ steps.version.outputs.tag }}.bin"
+          mv "$src" "$dst"
+          ls -la build/
+
+      - name: Firmware als Artifact hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: bollerwagen-firmware-${{ steps.version.outputs.tag }}
+          path: build/bollerwagen-*.bin
+          retention-days: 30
+          if-no-files-found: error
+
+      # Bei einem GitHub-Release wird die .bin automatisch angehängt
+      - name: .bin an Release anhängen
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/bollerwagen-*.bin

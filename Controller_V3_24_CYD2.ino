@@ -195,6 +195,7 @@ void setup() {
 
 // ========================= Loop =========================
 
+void loop() {
     // Diagnose und Serial-Eingabe nur, wenn USB-Serial aktiv ist.
     // Mit HASP_RS485_ENABLED ist Serial = RS485-Bus → kein Debug-Output, keine Eingabe!
 #ifndef HASP_RS485_ENABLED
