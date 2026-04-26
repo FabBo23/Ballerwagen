@@ -9,6 +9,9 @@ on:
     types: [ created ]
   workflow_dispatch:
 
+permissions:
+  contents: write   # nur für die Release-Asset-Anhängung benötigt
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -31,7 +34,8 @@ jobs:
 
       - name: ESP32-Plattform registrieren
         run: |
-          arduino-cli config init
+          # --overwrite, damit ein vorhandenes arduino-cli.yaml kein Fehler ist
+          arduino-cli config init --overwrite
           arduino-cli config add board_manager.additional_urls \
             https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli core update-index
@@ -39,14 +43,17 @@ jobs:
 
       - name: Bibliotheken installieren
         run: |
+          # Eindeutige Namen verwenden, sonst fragt arduino-cli interaktiv nach
           arduino-cli lib install "PubSubClient"
           arduino-cli lib install "OneWire"
           arduino-cli lib install "DallasTemperature"
 
       - name: Firmware kompilieren
         run: |
+          # Ohne explizites PartitionScheme – die Board-Defaults reichen für
+          # die ~50 KB Web-UI auf LittleFS und sind über alle ESP32-Core-Versionen stabil.
           arduino-cli compile \
-            --fqbn esp32:esp32:esp32:PartitionScheme=default \
+            --fqbn esp32:esp32:esp32 \
             --output-dir build \
             sketch/Controller_V3_24_CYD2
 
@@ -54,15 +61,23 @@ jobs:
         id: version
         run: |
           if [[ "${{ github.event_name }}" == "release" ]]; then
-            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+            echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: .bin umbenennen
+      - name: Firmware-Datei umbenennen
         run: |
-          mv build/Controller_V3_24_CYD2.ino.bin \
-             build/bollerwagen-${{ steps.version.outputs.tag }}.bin
+          # Tatsächliches .bin per find suchen – arduino-cli-Versionen haben unterschiedliche Suffixe
+          src=$(find build -maxdepth 2 -name 'Controller_V3_24_CYD2.ino.bin' | head -n 1)
+          if [[ -z "$src" ]]; then
+            echo "Konnte keine .bin-Datei in build/ finden:" >&2
+            find build -type f >&2
+            exit 1
+          fi
+          dst="build/bollerwagen-${{ steps.version.outputs.tag }}.bin"
+          mv "$src" "$dst"
+          ls -la build/
 
       - name: Firmware als Artifact hochladen
         uses: actions/upload-artifact@v4
@@ -70,6 +85,7 @@ jobs:
           name: bollerwagen-firmware-${{ steps.version.outputs.tag }}
           path: build/bollerwagen-*.bin
           retention-days: 30
+          if-no-files-found: error
 
       # Bei einem GitHub-Release wird die .bin automatisch angehängt
       - name: .bin an Release anhängen
