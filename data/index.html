@@ -118,7 +118,7 @@
         </div>
     </div>
 
-    <div class="footer">Bolla Bar</div>
+    <div class="footer">Bolla Bar &nbsp;·&nbsp; Firmware <span id="fw-ver">v?</span></div>
 </div>
 
 <script>
@@ -188,6 +188,7 @@
     }
 
     updateData();
+    fetch('/version').then(r=>r.text()).then(v=>{ const el=document.getElementById('fw-ver'); if(el) el.textContent='v'+v; });
 </script>
 </body>
 </html>

@@ -66,6 +66,7 @@
         <a href="/wifi" class="btn btn-wifi">📶 WLAN-Einstellungen</a>
     </div>
 </div>
+<p style="text-align:center;font-size:0.8em;color:#999;margin-top:5px">Firmware <span id="fw-ver">v?</span></p>
 
 <script>
     // Aktuelle Konfiguration vom ESP32 laden
@@ -84,6 +85,8 @@
         .catch(e => {
             document.getElementById('status-msg').textContent = 'Fehler beim Laden der Konfiguration: ' + e;
         });
+
+    fetch('/version').then(r=>r.text()).then(v=>{ const el=document.getElementById('fw-ver'); if(el) el.textContent='v'+v; });
 
     function saveConfig() {
         const body = new URLSearchParams({

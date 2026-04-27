@@ -326,11 +326,153 @@ void handleOtaResult() {
     }
 }
 
+// ========================= Firmware-Version & Online-OTA =========================
+
+void handleGetVersion() {
+    wsNoKeepAlive();
+    server.send(200, "text/plain", FIRMWARE_VERSION);
+}
+
+// Sucht im JSON der GitHub Releases API nach dem ersten .bin-Asset-Download-Link.
+static String findBinUrl(const String& json) {
+    int pos = 0;
+    while (true) {
+        int idx = json.indexOf("\"browser_download_url\":\"", pos);
+        if (idx < 0) break;
+        idx += 24;
+        int end = json.indexOf('"', idx);
+        if (end < 0) break;
+        String url = json.substring(idx, end);
+        url.replace("\\/", "/");
+        if (url.endsWith(".bin")) return url;
+        pos = end;
+    }
+    return "";
+}
+
+static String extractJsonStr(const String& json, const char* key) {
+    String needle = String("\"") + key + "\":\"";
+    int idx = json.indexOf(needle);
+    if (idx < 0) return "";
+    idx += needle.length();
+    int end = json.indexOf('"', idx);
+    return end < 0 ? "" : json.substring(idx, end);
+}
+
+// GET /check_update
+// Prüft GitHub Releases API und gibt JSON mit Versions- und Download-Info zurück.
+// Hinweis: blockiert den Loop für ~1-3 s (HTTPS) – nur nutzerinitiiert.
+void handleCheckUpdate() {
+    if (WiFi.status() != WL_CONNECTED) {
+        wsNoKeepAlive();
+        server.send(503, "application/json", "{\"error\":\"Kein WLAN\"}");
+        return;
+    }
+
+    WiFiClientSecure sec;
+    sec.setInsecure();
+    HTTPClient http;
+    http.setTimeout(8000);
+    http.begin(sec, "https://api.github.com/repos/FabBo23/Ballerwagen/releases/latest");
+    http.addHeader("User-Agent", "ESP32-Bollerwagen/" FIRMWARE_VERSION);
+    http.addHeader("Accept", "application/vnd.github+json");
+
+    int code = http.GET();
+    if (code != HTTP_CODE_OK) {
+        String err = "{\"error\":\"GitHub HTTP " + String(code) + "\"}";
+        http.end();
+        wsNoKeepAlive();
+        server.send(502, "application/json", err);
+        return;
+    }
+
+    String body = http.getString();
+    http.end();
+
+    String tag    = extractJsonStr(body, "tag_name");
+    String dlUrl  = findBinUrl(body);
+    String latest = tag.startsWith("v") ? tag.substring(1) : tag;
+    bool   newer  = (latest.length() > 0 && latest != FIRMWARE_VERSION);
+
+    String resp = "{\"current\":\"" FIRMWARE_VERSION "\","
+                  "\"latest\":\"" + latest + "\","
+                  "\"tag\":\"" + tag + "\","
+                  "\"url\":\"" + dlUrl + "\","
+                  "\"update_available\":" + (newer ? "true" : "false") + "}";
+    wsNoKeepAlive();
+    server.send(200, "application/json", resp);
+}
+
+// POST /ota_url   body (text/plain): Download-URL der .bin
+// Lädt die Firmware herunter und flasht sie direkt per HTTP-OTA.
+void handleOtaFromUrl() {
+    String url = server.arg("plain");
+    if (url.isEmpty()) {
+        wsNoKeepAlive();
+        server.send(400, "text/plain", "URL fehlt");
+        return;
+    }
+
+    if (dataMutex != NULL && xSemaphoreTake(dataMutex, pdMS_TO_TICKS(500))) {
+        drehzahlSollwert = 0;
+        xSemaphoreGive(dataMutex);
+    }
+
+    WiFiClientSecure sec;
+    sec.setInsecure();
+    HTTPClient http;
+    http.setTimeout(60000);
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.begin(sec, url);
+
+    int code = http.GET();
+    if (code != HTTP_CODE_OK) {
+        http.end();
+        wsNoKeepAlive();
+        server.send(500, "text/plain", "Download HTTP " + String(code));
+        return;
+    }
+
+    int total = http.getSize();
+    if (!Update.begin(total > 0 ? total : UPDATE_SIZE_UNKNOWN)) {
+        http.end();
+        wsNoKeepAlive();
+        server.send(500, "text/plain", String("Update.begin: ") + Update.errorString());
+        return;
+    }
+
+    WiFiClient* stream = http.getStreamPtr();
+    Update.writeStream(*stream);
+
+    if (Update.hasError()) {
+        http.end();
+        wsNoKeepAlive();
+        server.send(500, "text/plain", String("Flash-Fehler: ") + Update.errorString());
+        return;
+    }
+
+    if (!Update.end(true)) {
+        http.end();
+        wsNoKeepAlive();
+        server.send(500, "text/plain", String("Update.end: ") + Update.errorString());
+        return;
+    }
+
+    http.end();
+    wsNoKeepAlive();
+    server.send(200, "text/plain", "OK");
+    delay(500);
+    ESP.restart();
+}
+
 // ========================= Server Setup =========================
 
 void setupWebServer() {
-    server.on("/ota",    HTTP_GET,  handleOtaPage);
-    server.on("/update", HTTP_POST, handleOtaResult, handleOtaUpload);
+    server.on("/ota",          HTTP_GET,  handleOtaPage);
+    server.on("/update",       HTTP_POST, handleOtaResult, handleOtaUpload);
+    server.on("/version",      HTTP_GET,  handleGetVersion);
+    server.on("/check_update", HTTP_GET,  handleCheckUpdate);
+    server.on("/ota_url",      HTTP_POST, handleOtaFromUrl);
     server.on("/",                HTTP_GET,  handleRoot);
     server.on("/dashboard",       HTTP_GET,  handleDashboard);
     server.on("/config",          HTTP_GET,  handleConfig);

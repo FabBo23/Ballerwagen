@@ -134,6 +134,7 @@
     </div>
 
     <a href="/" class="btn btn-secondary">← Zurück zur Steuerung</a>
+    <p style="text-align:center;font-size:0.8em;color:#999;margin-top:10px">Firmware <span id="fw-ver">v?</span></p>
 </div>
 
 <script>
@@ -165,6 +166,8 @@
         .catch(() => {
             document.getElementById('mqtt-status').textContent = 'Status konnte nicht geladen werden.';
         });
+
+    fetch('/version').then(r=>r.text()).then(v=>{ const el=document.getElementById('fw-ver'); if(el) el.textContent='v'+v; });
 
     function saveConfig() {
         const fb = document.getElementById('feedback');
