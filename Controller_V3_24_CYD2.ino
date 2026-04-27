@@ -20,6 +20,8 @@
 #include <DallasTemperature.h>
 #include <esp_wifi.h>
 #include <LittleFS.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 
 // ========================= Konfiguration (Konstanten & Pins) =========================
 #include "config.h"

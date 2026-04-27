@@ -22,6 +22,18 @@
         .card h2 { color: var(--primary-color); margin-top: 0; font-size: 1.1em; }
         .warning-box { background-color: #fff3cd; border-left: 4px solid var(--warning-color);
                        padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; font-size: 0.9em; }
+        /* Version-Anzeige */
+        .version-row { display: flex; justify-content: space-between; align-items: center;
+                       padding: 8px 0; border-bottom: 1px solid #eee; margin-bottom: 12px; }
+        .version-label { font-size: 0.9em; color: var(--text-muted); }
+        .version-value { font-weight: bold; font-size: 0.95em; }
+        /* Update-Status */
+        .update-box { padding: 12px 16px; border-radius: 6px; margin-bottom: 14px;
+                      font-size: 0.92em; border-left: 4px solid transparent; display: none; }
+        .update-ok      { background: #d4edda; border-color: var(--success-color); color: #155724; }
+        .update-avail   { background: #cce5ff; border-color: var(--primary-color); color: #004085; }
+        .update-err     { background: #f8d7da; border-color: var(--danger-color);  color: #721c24; }
+        /* Datei-Upload Dropzone */
         .drop-zone { border: 2px dashed #ced4da; border-radius: var(--border-radius);
                      padding: 40px 20px; text-align: center; cursor: pointer;
                      transition: border-color 0.2s, background-color 0.2s; margin-bottom: 16px; }
@@ -32,23 +44,32 @@
         #file-name { font-weight: bold; color: var(--primary-color); margin-top: 8px;
                      min-height: 1.4em; text-align: center; }
         input[type="file"] { display: none; }
+        /* Buttons */
         .btn { display: inline-block; padding: 10px 24px; border: none;
                border-radius: var(--border-radius); cursor: pointer; font-size: 0.95em;
                text-decoration: none; margin: 4px; transition: background-color 0.2s; }
-        .btn-primary { background-color: var(--primary-color); color: white; width: 100%;
-                       box-sizing: border-box; font-size: 1em; padding: 12px; }
-        .btn-primary:hover { background-color: #0056b3; }
+        .btn-primary { background-color: var(--primary-color); color: white;
+                       width: 100%; box-sizing: border-box; font-size: 1em; padding: 12px; }
+        .btn-primary:hover   { background-color: #0056b3; }
         .btn-primary:disabled { background-color: #6c757d; cursor: not-allowed; }
         .btn-secondary { background-color: #6c757d; color: white; }
         .btn-secondary:hover { background-color: #5a6268; }
+        .btn-check { background-color: var(--primary-color); color: white;
+                     padding: 8px 18px; font-size: 0.9em; }
+        .btn-check:hover  { background-color: #0056b3; }
+        .btn-install { background-color: var(--success-color); color: white;
+                       padding: 8px 18px; font-size: 0.9em; display: none; }
+        .btn-install:hover { background-color: #1e7e34; }
+        /* Fortschrittsbalken */
         .progress-wrap { display: none; margin-top: 16px; }
         .progress-bar-bg { background-color: #e9ecef; border-radius: 4px; height: 22px; overflow: hidden; }
         .progress-bar { background-color: var(--primary-color); height: 100%; width: 0%;
                         transition: width 0.3s ease; border-radius: 4px; }
         .progress-label { text-align: center; font-size: 0.85em; color: var(--text-muted); margin-top: 4px; }
-        #status { margin-top: 16px; font-weight: bold; min-height: 1.4em; text-align: center; }
+        #status, #status-online { margin-top: 16px; font-weight: bold; min-height: 1.4em; text-align: center; }
         .status-ok  { color: var(--success-color); }
         .status-err { color: var(--danger-color); }
+        .footer { text-align: center; margin-top: 20px; font-size: 0.8em; color: var(--text-muted); }
         a { color: var(--primary-color); }
     </style>
 </head>
@@ -57,13 +78,38 @@
     <h1>OTA Firmware Update</h1>
 
     <div class="warning-box">
-        &#9888; Falsche Firmware kann den Bollerwagen unbrauchbar machen.
-        Nur <strong>.bin</strong>-Dateien aus dem Arduino-Build hochladen.
+        &#9888; Nur <strong>.bin</strong>-Dateien aus dem Arduino-Build / GitHub-Release hochladen.
         Motor wird vor dem Neustart automatisch gestoppt.
     </div>
 
+    <!-- Online Update -->
     <div class="card">
-        <h2>Firmware-Datei</h2>
+        <h2>&#127760; Online Update</h2>
+
+        <div class="version-row">
+            <span class="version-label">Installierte Version</span>
+            <span class="version-value" id="ver-current">…</span>
+        </div>
+        <div class="version-row" id="latest-row" style="display:none">
+            <span class="version-label">Neueste Version (GitHub)</span>
+            <span class="version-value" id="ver-latest">…</span>
+        </div>
+
+        <div class="update-box" id="update-box"></div>
+
+        <button class="btn btn-check" id="check-btn" onclick="checkUpdate()">&#128269; Nach Updates suchen</button>
+        <button class="btn btn-install" id="install-btn" onclick="installUpdate()">&#8659; Installieren</button>
+
+        <div class="progress-wrap" id="progress-online">
+            <div class="progress-bar-bg"><div class="progress-bar" id="bar-online"></div></div>
+            <div class="progress-label" id="label-online">Lade Firmware…</div>
+        </div>
+        <div id="status-online"></div>
+    </div>
+
+    <!-- Manueller Upload -->
+    <div class="card">
+        <h2>&#128190; Manueller Upload</h2>
 
         <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
             <div class="icon">&#128190;</div>
@@ -74,14 +120,10 @@
         <div id="file-name">Keine Datei ausgewählt</div>
 
         <div class="progress-wrap" id="progress-wrap">
-            <div class="progress-bar-bg">
-                <div class="progress-bar" id="progress-bar"></div>
-            </div>
+            <div class="progress-bar-bg"><div class="progress-bar" id="progress-bar"></div></div>
             <div class="progress-label" id="progress-label">0%</div>
         </div>
-
         <div id="status"></div>
-
         <br>
         <button class="btn btn-primary" id="upload-btn" onclick="startUpload()" disabled>
             &#8593; Firmware hochladen &amp; flashen
@@ -89,9 +131,123 @@
     </div>
 
     <a href="/" class="btn btn-secondary">&#8592; Zurück</a>
+    <div class="footer" id="fw-footer">Firmware v<span id="fw-ver">…</span></div>
 </div>
 
 <script>
+    let installUrl = '';
+
+    // Aktuelle Version laden
+    fetch('/version').then(r => r.text()).then(v => {
+        document.getElementById('ver-current').textContent = 'v' + v;
+        document.getElementById('fw-ver').textContent = v;
+    }).catch(() => {
+        document.getElementById('ver-current').textContent = '?';
+    });
+
+    // ---- Online Update ----
+
+    function checkUpdate() {
+        const btn   = document.getElementById('check-btn');
+        const box   = document.getElementById('update-box');
+        const iBtn  = document.getElementById('install-btn');
+        btn.disabled  = true;
+        btn.textContent = '…';
+        box.style.display = 'none';
+        iBtn.style.display = 'none';
+        document.getElementById('latest-row').style.display = 'none';
+
+        fetch('/check_update')
+            .then(r => r.json())
+            .then(d => {
+                btn.disabled = false;
+                btn.textContent = '🔍 Nach Updates suchen';
+
+                if (d.error) {
+                    box.className = 'update-box update-err';
+                    box.textContent = 'Fehler: ' + d.error;
+                    box.style.display = 'block';
+                    return;
+                }
+
+                document.getElementById('ver-latest').textContent = 'v' + d.latest;
+                document.getElementById('latest-row').style.display = 'flex';
+
+                if (d.update_available && d.url) {
+                    installUrl = d.url;
+                    box.className = 'update-box update-avail';
+                    box.innerHTML = '&#8599; Neue Version <strong>v' + escHtml(d.latest) + '</strong> verfügbar!';
+                    box.style.display = 'block';
+                    iBtn.style.display = 'inline-block';
+                } else {
+                    box.className = 'update-box update-ok';
+                    box.textContent = '✓ Bereits aktuell (v' + d.latest + ')';
+                    box.style.display = 'block';
+                }
+            })
+            .catch(e => {
+                btn.disabled = false;
+                btn.textContent = '🔍 Nach Updates suchen';
+                box.className = 'update-box update-err';
+                box.textContent = 'Netzwerkfehler: ' + e;
+                box.style.display = 'block';
+            });
+    }
+
+    function installUpdate() {
+        if (!installUrl) return;
+        const iBtn    = document.getElementById('install-btn');
+        const status  = document.getElementById('status-online');
+        const prog    = document.getElementById('progress-online');
+        const bar     = document.getElementById('bar-online');
+        const label   = document.getElementById('label-online');
+
+        iBtn.disabled = true;
+        document.getElementById('check-btn').disabled = true;
+        prog.style.display = 'block';
+        bar.style.width = '0%';
+        label.textContent = 'Verbinde GitHub…';
+        status.textContent = '';
+
+        // Simulierter Fortschritt (tatsächlicher Download blockiert serverseitig)
+        let fakeProgress = 0;
+        const ticker = setInterval(() => {
+            fakeProgress = Math.min(fakeProgress + 2, 90);
+            bar.style.width = fakeProgress + '%';
+            label.textContent = fakeProgress < 30 ? 'Lade Firmware von GitHub…'
+                              : fakeProgress < 70 ? 'Übertrage Firmware…'
+                              : 'Flashe…';
+        }, 600);
+
+        fetch('/ota_url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: installUrl,
+            signal: AbortSignal.timeout(90000)
+        })
+        .then(r => {
+            clearInterval(ticker);
+            bar.style.width = '100%';
+            if (r.ok) {
+                label.textContent = '100%';
+                status.className = 'status-ok';
+                status.textContent = '✓ Fertig! ESP32 startet neu – Seite lädt in 10 s…';
+                setTimeout(() => location.href = '/', 10000);
+            } else {
+                return r.text().then(t => { throw new Error(t); });
+            }
+        })
+        .catch(e => {
+            clearInterval(ticker);
+            iBtn.disabled = false;
+            document.getElementById('check-btn').disabled = false;
+            status.className = 'status-err';
+            status.textContent = 'Fehler: ' + e.message;
+        });
+    }
+
+    // ---- Manueller Upload ----
+
     const dropZone   = document.getElementById('drop-zone');
     const fileInput  = document.getElementById('file-input');
     const fileNameEl = document.getElementById('file-name');
@@ -100,12 +256,10 @@
     let selectedFile = null;
 
     fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
-
     dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
     dropZone.addEventListener('drop', e => {
-        e.preventDefault();
-        dropZone.classList.remove('drag-over');
+        e.preventDefault(); dropZone.classList.remove('drag-over');
         setFile(e.dataTransfer.files[0]);
     });
 
@@ -137,19 +291,17 @@
 
         const xhr = new XMLHttpRequest();
         xhr.open('POST', '/update', true);
-
         xhr.upload.addEventListener('progress', e => {
             if (e.lengthComputable) {
                 const pct = Math.round(e.loaded / e.total * 100);
-                bar.style.width  = pct + '%';
+                bar.style.width = pct + '%';
                 label.textContent = pct + '%  (' + (e.loaded/1024).toFixed(0) + ' / ' + (e.total/1024).toFixed(0) + ' kB)';
             }
         });
-
         xhr.addEventListener('load', () => {
             if (xhr.status === 200) {
                 statusEl.className   = 'status-ok';
-                statusEl.textContent = '&#10003; Flash erfolgreich! ESP32 startet neu – Seite lädt in 8s...';
+                statusEl.textContent = '✓ Flash erfolgreich! ESP32 startet neu – Seite lädt in 8 s…';
                 setTimeout(() => location.href = '/', 8000);
             } else {
                 statusEl.className   = 'status-err';
@@ -157,14 +309,16 @@
                 uploadBtn.disabled   = false;
             }
         });
-
         xhr.addEventListener('error', () => {
             statusEl.className   = 'status-err';
             statusEl.textContent = 'Netzwerkfehler beim Upload.';
             uploadBtn.disabled   = false;
         });
-
         xhr.send(formData);
+    }
+
+    function escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 </script>
 </body>
