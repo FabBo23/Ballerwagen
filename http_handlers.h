@@ -333,8 +333,10 @@ void handleGetVersion() {
     server.send(200, "text/plain", FIRMWARE_VERSION);
 }
 
-// Sucht im JSON der GitHub Releases API nach dem ersten .bin-Asset-Download-Link.
-static String findBinUrl(const String& json) {
+// Sucht im JSON der GitHub Releases API nach einem .bin-Asset-Link.
+// Wenn mustContain != nullptr, muss die URL diesen Substring enthalten
+// (z.B. "bollerwagen" für die Firmware oder "littlefs" für das FS-Image).
+static String findAssetUrl(const String& json, const char* mustContain) {
     int pos = 0;
     while (true) {
         int idx = json.indexOf("\"browser_download_url\":\"", pos);
@@ -344,7 +346,10 @@ static String findBinUrl(const String& json) {
         if (end < 0) break;
         String url = json.substring(idx, end);
         url.replace("\\/", "/");
-        if (url.endsWith(".bin")) return url;
+        if (url.endsWith(".bin") &&
+            (mustContain == nullptr || url.indexOf(mustContain) >= 0)) {
+            return url;
+        }
         pos = end;
     }
     return "";
@@ -390,21 +395,66 @@ void handleCheckUpdate() {
     http.end();
 
     String tag    = extractJsonStr(body, "tag_name");
-    String dlUrl  = findBinUrl(body);
+    String fwUrl  = findAssetUrl(body, "bollerwagen");
+    String fsUrl  = findAssetUrl(body, "littlefs");
+    // Fallback: falls Asset nicht nach Schema benannt ist, erstes .bin nehmen
+    if (fwUrl.isEmpty()) fwUrl = findAssetUrl(body, nullptr);
     String latest = tag.startsWith("v") ? tag.substring(1) : tag;
     bool   newer  = (latest.length() > 0 && latest != FIRMWARE_VERSION);
 
     String resp = "{\"current\":\"" FIRMWARE_VERSION "\","
                   "\"latest\":\"" + latest + "\","
                   "\"tag\":\"" + tag + "\","
-                  "\"url\":\"" + dlUrl + "\","
+                  "\"url\":\"" + fwUrl + "\","
+                  "\"fs_url\":\"" + fsUrl + "\","
                   "\"update_available\":" + (newer ? "true" : "false") + "}";
     wsNoKeepAlive();
     server.send(200, "application/json", resp);
 }
 
-// POST /ota_url   body (text/plain): Download-URL der .bin
-// Lädt die Firmware herunter und flasht sie direkt per HTTP-OTA.
+// Gemeinsame Logik für Firmware- und LittleFS-OTA aus URL.
+// otaType ist U_FLASH (Firmware) oder U_SPIFFS (LittleFS-Partition).
+// Gibt einen leeren String bei Erfolg zurück, sonst die Fehlermeldung.
+static String otaFlashFromUrl(const String& url, int otaType) {
+    WiFiClientSecure sec;
+    sec.setInsecure();
+    HTTPClient http;
+    http.setTimeout(60000);
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    if (!http.begin(sec, url)) return "HTTP begin fehlgeschlagen";
+
+    int code = http.GET();
+    if (code != HTTP_CODE_OK) {
+        http.end();
+        return "Download HTTP " + String(code);
+    }
+
+    int total = http.getSize();
+    if (!Update.begin(total > 0 ? total : UPDATE_SIZE_UNKNOWN, otaType)) {
+        http.end();
+        return String("Update.begin: ") + Update.errorString();
+    }
+
+    WiFiClient* stream = http.getStreamPtr();
+    Update.writeStream(*stream);
+
+    if (Update.hasError()) {
+        String e = String("Flash-Fehler: ") + Update.errorString();
+        http.end();
+        return e;
+    }
+    if (!Update.end(true)) {
+        String e = String("Update.end: ") + Update.errorString();
+        http.end();
+        return e;
+    }
+    http.end();
+    return "";
+}
+
+// POST /ota_url      body (text/plain): URL der Firmware-.bin
+// Flasht die App-Partition. KEIN automatischer Neustart, damit der Client
+// im Anschluss noch /ota_url_fs aufrufen kann.
 void handleOtaFromUrl() {
     String url = server.arg("plain");
     if (url.isEmpty()) {
@@ -418,49 +468,32 @@ void handleOtaFromUrl() {
         xSemaphoreGive(dataMutex);
     }
 
-    WiFiClientSecure sec;
-    sec.setInsecure();
-    HTTPClient http;
-    http.setTimeout(60000);
-    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    http.begin(sec, url);
-
-    int code = http.GET();
-    if (code != HTTP_CODE_OK) {
-        http.end();
-        wsNoKeepAlive();
-        server.send(500, "text/plain", "Download HTTP " + String(code));
-        return;
-    }
-
-    int total = http.getSize();
-    if (!Update.begin(total > 0 ? total : UPDATE_SIZE_UNKNOWN)) {
-        http.end();
-        wsNoKeepAlive();
-        server.send(500, "text/plain", String("Update.begin: ") + Update.errorString());
-        return;
-    }
-
-    WiFiClient* stream = http.getStreamPtr();
-    Update.writeStream(*stream);
-
-    if (Update.hasError()) {
-        http.end();
-        wsNoKeepAlive();
-        server.send(500, "text/plain", String("Flash-Fehler: ") + Update.errorString());
-        return;
-    }
-
-    if (!Update.end(true)) {
-        http.end();
-        wsNoKeepAlive();
-        server.send(500, "text/plain", String("Update.end: ") + Update.errorString());
-        return;
-    }
-
-    http.end();
+    String err = otaFlashFromUrl(url, U_FLASH);
     wsNoKeepAlive();
-    server.send(200, "text/plain", "OK");
+    if (err.length()) server.send(500, "text/plain", err);
+    else              server.send(200, "text/plain", "OK");
+}
+
+// POST /ota_url_fs   body (text/plain): URL des LittleFS-Images
+// Flasht die SPIFFS/LittleFS-Partition (HTML/CSS/JS aus data/).
+void handleOtaFsFromUrl() {
+    String url = server.arg("plain");
+    if (url.isEmpty()) {
+        wsNoKeepAlive();
+        server.send(400, "text/plain", "URL fehlt");
+        return;
+    }
+
+    String err = otaFlashFromUrl(url, U_SPIFFS);
+    wsNoKeepAlive();
+    if (err.length()) server.send(500, "text/plain", err);
+    else              server.send(200, "text/plain", "OK");
+}
+
+// POST /ota_restart   Neustart nach abgeschlossenem OTA-Flash.
+void handleOtaRestart() {
+    wsNoKeepAlive();
+    server.send(200, "text/plain", "RESTART");
     delay(500);
     ESP.restart();
 }
@@ -473,6 +506,8 @@ void setupWebServer() {
     server.on("/version",      HTTP_GET,  handleGetVersion);
     server.on("/check_update", HTTP_GET,  handleCheckUpdate);
     server.on("/ota_url",      HTTP_POST, handleOtaFromUrl);
+    server.on("/ota_url_fs",   HTTP_POST, handleOtaFsFromUrl);
+    server.on("/ota_restart",  HTTP_POST, handleOtaRestart);
     server.on("/",                HTTP_GET,  handleRoot);
     server.on("/dashboard",       HTTP_GET,  handleDashboard);
     server.on("/config",          HTTP_GET,  handleConfig);
