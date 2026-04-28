@@ -135,7 +135,8 @@
 </div>
 
 <script>
-    let installUrl = '';
+    let installUrl   = '';
+    let installFsUrl = '';
 
     // Aktuelle Version laden
     fetch('/version').then(r => r.text()).then(v => {
@@ -174,9 +175,14 @@
                 document.getElementById('latest-row').style.display = 'flex';
 
                 if (d.update_available && d.url) {
-                    installUrl = d.url;
+                    installUrl   = d.url;
+                    installFsUrl = d.fs_url || '';
                     box.className = 'update-box update-avail';
-                    box.innerHTML = '&#8599; Neue Version <strong>v' + escHtml(d.latest) + '</strong> verfügbar!';
+                    const fsHint = installFsUrl
+                        ? ' (Firmware + Web-UI)'
+                        : ' (nur Firmware – kein LittleFS-Asset gefunden)';
+                    box.innerHTML = '&#8599; Neue Version <strong>v' + escHtml(d.latest)
+                                  + '</strong> verfügbar!' + fsHint;
                     box.style.display = 'block';
                     iBtn.style.display = 'inline-block';
                 } else {
@@ -194,7 +200,34 @@
             });
     }
 
-    function installUpdate() {
+    // Lädt eine .bin per POST in das angegebene Endpoint und meldet Fortschritt
+    // über einen "fake" Ticker, weil der Download serverseitig blockiert.
+    function flashStep(endpoint, url, label, bar, labelEl, hintFrom, hintTo) {
+        return new Promise((resolve, reject) => {
+            let pct = 0;
+            const ticker = setInterval(() => {
+                pct = Math.min(pct + 2, 95);
+                const span = hintTo - hintFrom;
+                bar.style.width = (hintFrom + (span * pct / 100)) + '%';
+                labelEl.textContent = label + ' (' + pct + '%)';
+            }, 600);
+
+            fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: url,
+                signal: AbortSignal.timeout(120000)
+            })
+            .then(r => {
+                clearInterval(ticker);
+                if (r.ok) { resolve(); }
+                else      { return r.text().then(t => { throw new Error(t); }); }
+            })
+            .catch(e => { clearInterval(ticker); reject(e); });
+        });
+    }
+
+    async function installUpdate() {
         if (!installUrl) return;
         const iBtn    = document.getElementById('install-btn');
         const status  = document.getElementById('status-online');
@@ -206,44 +239,34 @@
         document.getElementById('check-btn').disabled = true;
         prog.style.display = 'block';
         bar.style.width = '0%';
-        label.textContent = 'Verbinde GitHub…';
         status.textContent = '';
 
-        // Simulierter Fortschritt (tatsächlicher Download blockiert serverseitig)
-        let fakeProgress = 0;
-        const ticker = setInterval(() => {
-            fakeProgress = Math.min(fakeProgress + 2, 90);
-            bar.style.width = fakeProgress + '%';
-            label.textContent = fakeProgress < 30 ? 'Lade Firmware von GitHub…'
-                              : fakeProgress < 70 ? 'Übertrage Firmware…'
-                              : 'Flashe…';
-        }, 600);
+        try {
+            // Schritt 1: Firmware (0-50% bzw. 0-100% wenn kein FS-Image)
+            const fwTo = installFsUrl ? 50 : 100;
+            await flashStep('/ota_url', installUrl, 'Flashe Firmware…',
+                            bar, label, 0, fwTo);
 
-        fetch('/ota_url', {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: installUrl,
-            signal: AbortSignal.timeout(90000)
-        })
-        .then(r => {
-            clearInterval(ticker);
-            bar.style.width = '100%';
-            if (r.ok) {
-                label.textContent = '100%';
-                status.className = 'status-ok';
-                status.textContent = '✓ Fertig! ESP32 startet neu – Seite lädt in 10 s…';
-                setTimeout(() => location.href = '/', 10000);
-            } else {
-                return r.text().then(t => { throw new Error(t); });
+            // Schritt 2: LittleFS (50-100%) – optional
+            if (installFsUrl) {
+                await flashStep('/ota_url_fs', installFsUrl, 'Flashe Web-UI…',
+                                bar, label, 50, 100);
             }
-        })
-        .catch(e => {
-            clearInterval(ticker);
+
+            // Schritt 3: Reboot
+            bar.style.width = '100%';
+            label.textContent = 'Starte neu…';
+            await fetch('/ota_restart', { method: 'POST' }).catch(() => {});
+
+            status.className   = 'status-ok';
+            status.textContent = '✓ Fertig! ESP32 startet neu – Seite lädt in 10 s…';
+            setTimeout(() => location.href = '/', 10000);
+        } catch (e) {
             iBtn.disabled = false;
             document.getElementById('check-btn').disabled = false;
-            status.className = 'status-err';
+            status.className   = 'status-err';
             status.textContent = 'Fehler: ' + e.message;
-        });
+        }
     }
 
     // ---- Manueller Upload ----

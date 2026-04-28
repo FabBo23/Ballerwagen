@@ -79,6 +79,21 @@ jobs:
           mv "$src" "$dst"
           ls -la build/
 
+      # LittleFS-Image bauen, damit auch HTML/CSS/JS aus data/ per OTA aktualisiert werden.
+      # Größe (0x160000 = 1 441 792 B) entspricht der spiffs-Partition im Default-ESP32-Schema (4 MB).
+      - name: LittleFS-Image bauen
+        run: |
+          MKLITTLEFS=$(find ~/.arduino15/packages/esp32/tools/mklittlefs -name 'mklittlefs' -type f | head -n 1)
+          if [[ -z "$MKLITTLEFS" ]]; then
+            echo "mklittlefs nicht im ESP32-Core gefunden:" >&2
+            find ~/.arduino15/packages/esp32/tools -maxdepth 3 -type d >&2
+            exit 1
+          fi
+          echo "Verwende: $MKLITTLEFS"
+          "$MKLITTLEFS" -c data -b 4096 -p 256 -s 0x160000 \
+            "build/littlefs-${{ steps.version.outputs.tag }}.bin"
+          ls -la build/
+
       - name: Firmware als Artifact hochladen
         uses: actions/upload-artifact@v4
         with:
@@ -87,9 +102,19 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-      # Bei einem GitHub-Release wird die .bin automatisch angehängt
-      - name: .bin an Release anhängen
+      - name: LittleFS als Artifact hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: bollerwagen-littlefs-${{ steps.version.outputs.tag }}
+          path: build/littlefs-*.bin
+          retention-days: 30
+          if-no-files-found: error
+
+      # Bei einem GitHub-Release werden beide .bin-Dateien angehängt
+      - name: .bin-Dateien an Release anhängen
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: build/bollerwagen-*.bin
+          files: |
+            build/bollerwagen-*.bin
+            build/littlefs-*.bin
