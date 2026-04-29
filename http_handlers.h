@@ -420,13 +420,15 @@ static String otaFlashFromUrl(const String& url, int otaType) {
     sec.setInsecure();
     HTTPClient http;
     http.setTimeout(60000);
-    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    // FORCE statt STRICT – folgt auch Host-wechselnden Redirects (github.com → objects.githubusercontent.com)
+    http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
     if (!http.begin(sec, url)) return "HTTP begin fehlgeschlagen";
 
     int code = http.GET();
     if (code != HTTP_CODE_OK) {
+        String errBody = http.getString().substring(0, 80);
         http.end();
-        return "Download HTTP " + String(code);
+        return "Download HTTP " + String(code) + ": " + errBody;
     }
 
     int total = http.getSize();
@@ -435,8 +437,43 @@ static String otaFlashFromUrl(const String& url, int otaType) {
         return String("Update.begin: ") + Update.errorString();
     }
 
+    // Manuelles Chunk-Schreiben statt writeStream(), damit wir den
+    // Magic-Byte des ersten Chunks prüfen können bevor wir flashen.
     WiFiClient* stream = http.getStreamPtr();
-    Update.writeStream(*stream);
+    uint8_t buf[512];
+    int written = 0;
+    bool firstChunk = true;
+    unsigned long deadline = millis() + 60000UL;
+
+    while (millis() < deadline) {
+        int avail = stream->available();
+        if (avail > 0) {
+            int n = stream->readBytes(buf, min(avail, (int)sizeof(buf)));
+            if (n <= 0) break;
+
+            if (firstChunk) {
+                firstChunk = false;
+                // Firmware muss mit ESP32-Magic 0xE9 beginnen
+                if (otaType == U_FLASH && buf[0] != 0xE9) {
+                    Update.abort();
+                    http.end();
+                    return String("Kein ESP32-Binary (Magic: 0x") + String(buf[0], HEX)
+                         + "). Redirect nicht gefolgt?";
+                }
+            }
+
+            if (Update.write(buf, n) != (size_t)n) {
+                Update.abort();
+                http.end();
+                return String("Schreibfehler: ") + Update.errorString();
+            }
+            written += n;
+        } else if (!http.connected()) {
+            break;
+        } else {
+            delay(1);
+        }
+    }
 
     if (Update.hasError()) {
         String e = String("Flash-Fehler: ") + Update.errorString();
