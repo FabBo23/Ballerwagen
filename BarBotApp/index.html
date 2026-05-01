@@ -121,9 +121,12 @@
         // ==============================================================================
         // EINSTELLUNGEN:
         // ==============================================================================
-        // 1. Dein geheimer Zugangs-Code (Muss mit dem QR-Code übereinstimmen)
-        const SECRET_CODE = "party123";
-        
+        // 1. Zugangs-Codes mit Berechtigungen (Muss mit dem QR-Code übereinstimmen)
+        const ACCESS_CODES = {
+            'party123':       { barbot: true, bollerwagen: false },
+            'ballerwagen123': { barbot: true, bollerwagen: true  }
+        };
+
         // 2. Deine sicheren HiveMQ Zugangsdaten
         const MQTT_BROKER = 'wss://3eb07fcfa5af4fc6b090299bd78da073.s1.eu.hivemq.cloud:8884/mqtt';
         const MQTT_USER   = 'Barbot';
@@ -154,8 +157,9 @@
             // URL auslesen und Code prüfen
             const urlParams = new URLSearchParams(window.location.search);
             const userCode = urlParams.get('code');
-            
-            if (userCode !== SECRET_CODE) {
+            const access   = ACCESS_CODES[userCode];
+
+            if (!access || !access.barbot) {
                 // Code falsch oder nicht vorhanden -> Sperren!
                 sDenied.classList.remove('hidden');
                 appContainer.classList.add('hidden');
@@ -166,9 +170,15 @@
             const levelsLink = document.getElementById('levels-link');
             if (levelsLink) levelsLink.href = 'levels.html?code=' + encodeURIComponent(userCode);
 
-            // Bollerwagen-Link mit Code verknüpfen
+            // Bollerwagen-Link nur zeigen wenn der Code dafür berechtigt ist
             const bollerwagenLink = document.getElementById('bollerwagen-link');
-            if (bollerwagenLink) bollerwagenLink.href = 'bollerwagen.html?code=' + encodeURIComponent(userCode);
+            if (bollerwagenLink) {
+                if (access.bollerwagen) {
+                    bollerwagenLink.href = 'bollerwagen.html?code=' + encodeURIComponent(userCode);
+                } else {
+                    bollerwagenLink.classList.add('hidden');
+                }
+            }
 
             // Code richtig -> App freigeben!
             sDenied.classList.add('hidden');
