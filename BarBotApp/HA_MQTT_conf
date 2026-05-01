@@ -1,0 +1,448 @@
+mqtt:
+  # ==========================================
+  # PLATFORM: BUTTON
+  # ==========================================
+  button:
+    # --- BarBot Steuerung ---
+    - name: "BarBot Start"
+      unique_id: "barbot_cmd_start"
+      command_topic: "barbot/cmd"
+      payload_press: "start"
+      icon: "mdi:play"
+      device: &barbot_device
+        identifiers: ["barbot_3000_device"]
+        name: "BarBot 3000"
+        model: "V4"
+        manufacturer: "Eigenbau"
+        configuration_url: "http://barbot.local"
+
+    - name: "BarBot Stop"
+      unique_id: "barbot_cmd_stop"
+      command_topic: "barbot/cmd"
+      payload_press: "stop"
+      icon: "mdi:stop"
+      device: *barbot_device
+
+    # --- Ballerwagen Buttons ---
+    - name: "STOP"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_stop"
+      command_topic: "bollerwagen/cmd/speed"
+      payload_press: "0"
+      icon: "mdi:stop-circle-outline"
+      device: &ballerwagen_device
+        identifiers: ["01K9ZE5KM3EDYHYADPMWRPY2Z9"]
+        manufacturer: "Ballerteam"
+        model: "Ballerwagen"
+        name: "Ballerwagen"
+
+    - name: "Hupe"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_horn"
+      command_topic: "bollerwagen/cmd/horn"
+      payload_press: "1"
+      icon: "mdi:bullhorn"
+      device: *ballerwagen_device
+
+
+  # ==========================================
+  # PLATFORM: SENSOR
+  # ==========================================
+  sensor:
+    - name: "BarBot Status"
+      unique_id: "barbot_status"
+      state_topic: "barbot/status"
+      icon: "mdi:robot-industrial"
+      device: *barbot_device
+
+    # --- Ballerwagen Sensoren ---
+    - name: "Geschwindigkeit"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_speed"
+      state_topic: "bollerwagen/state"
+      value_template: "{{ value_json.speed }}"
+      unit_of_measurement: "km/h"
+      device_class: "speed"
+      state_class: "measurement"
+      device: *ballerwagen_device
+
+    - name: "Drehzahl Sollwert"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_rpm_soll"
+      state_topic: "bollerwagen/state"
+      value_template: "{{ value_json.rpm_soll }}"
+      unit_of_measurement: "%"
+      icon: "mdi:speedometer"
+      device: *ballerwagen_device
+
+    - name: "Drehzahl Istwert"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_rpm_ist"
+      state_topic: "bollerwagen/state"
+      value_template: "{{ value_json.rpm_ist }}"
+      unit_of_measurement: "%"
+      icon: "mdi:speedometer-medium"
+      device: *ballerwagen_device
+
+    - name: "Temperatur"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_temp"
+      state_topic: "bollerwagen/state"
+      value_template: "{{ value_json.temperature }}"
+      unit_of_measurement: "°C"
+      device_class: "temperature"
+      state_class: "measurement"
+      device: *ballerwagen_device
+
+    - name: "Batterie SoC"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_soc"
+      state_topic: "bollerwagen/state"
+      value_template: "{{ value_json.soc }}"
+      unit_of_measurement: "%"
+      device_class: "battery"
+      state_class: "measurement"
+      device: *ballerwagen_device
+
+    - name: "Batteriespannung"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_voltage"
+      state_topic: "bollerwagen/state"
+      value_template: "{{ value_json.voltage }}"
+      unit_of_measurement: "V"
+      device_class: "voltage"
+      state_class: "measurement"
+      device: *ballerwagen_device
+
+    - name: "Strom"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_current"
+      state_topic: "bollerwagen/state"
+      value_template: "{{ value_json.current }}"
+      unit_of_measurement: "A"
+      device_class: "current"
+      state_class: "measurement"
+      device: *ballerwagen_device
+
+    - name: "Leistung"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_power"
+      state_topic: "bollerwagen/state"
+      value_template: "{{ value_json.power }}"
+      unit_of_measurement: "W"
+      device_class: "power"
+      state_class: "measurement"
+      device: *ballerwagen_device
+
+    - name: "Verbrauchte Energie"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_energy"
+      state_topic: "bollerwagen/state"
+      value_template: "{{ value_json.energy_wh }}"
+      unit_of_measurement: "Wh"
+      device_class: "energy"
+      state_class: "total_increasing"
+      device: *ballerwagen_device
+
+    # --- openHASP CYD Display Sensoren ---
+    # Stellt den openHASP-Standard-Nodenamen "plate01" voraus.
+    # Falls der Display-Nodename anders ist, überall "plate01" anpassen.
+    - name: "Display Aktive Seite"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_display_page"
+      state_topic: "hasp/plate01/state/page"
+      icon: "mdi:page-layout-body"
+      device: &ballerwagen_display
+        identifiers: ["01K9ZE5KM3EDYHYADPMWRPY2Z9_display"]
+        manufacturer: "Sunton"
+        model: "CYD 2.4 (openHASP)"
+        name: "Ballerwagen Display"
+        via_device: "01K9ZE5KM3EDYHYADPMWRPY2Z9"
+
+    - name: "Display IP"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_display_ip"
+      state_topic: "hasp/plate01/state/statusupdate"
+      value_template: "{{ value_json.ip }}"
+      icon: "mdi:ip-network"
+      entity_category: "diagnostic"
+      device: *ballerwagen_display
+
+    - name: "Display WLAN-Signal"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_display_rssi"
+      state_topic: "hasp/plate01/state/statusupdate"
+      value_template: "{{ value_json.rssi }}"
+      unit_of_measurement: "dBm"
+      device_class: "signal_strength"
+      state_class: "measurement"
+      entity_category: "diagnostic"
+      device: *ballerwagen_display
+
+    - name: "Display Uptime"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_display_uptime"
+      state_topic: "hasp/plate01/state/statusupdate"
+      value_template: "{{ value_json.uptime }}"
+      unit_of_measurement: "s"
+      device_class: "duration"
+      entity_category: "diagnostic"
+      device: *ballerwagen_display
+
+    - name: "Display Freier Speicher"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_display_heap"
+      state_topic: "hasp/plate01/state/statusupdate"
+      value_template: "{{ value_json.heap }}"
+      unit_of_measurement: "B"
+      icon: "mdi:memory"
+      entity_category: "diagnostic"
+      device: *ballerwagen_display
+
+    - name: "Display Letzter Button"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_display_last_object"
+      state_topic: "hasp/plate01/state/statusupdate"
+      value_template: "{{ value_json.lastObject }}"
+      icon: "mdi:gesture-tap-button"
+      entity_category: "diagnostic"
+      device: *ballerwagen_display
+
+
+  # ==========================================
+  # PLATFORM: BINARY_SENSOR
+  # ==========================================
+  binary_sensor:
+    # --- BarBot Gläser (1-12) ---
+    - name: "BarBot Glas 1"
+      unique_id: "barbot_glass_0"
+      state_topic: "barbot/glass/0"
+      icon: "mdi:glass-cocktail"
+      device: *barbot_device
+    - name: "BarBot Glas 2"
+      unique_id: "barbot_glass_1"
+      state_topic: "barbot/glass/1"
+      icon: "mdi:glass-cocktail"
+      device: *barbot_device
+    - name: "BarBot Glas 3"
+      unique_id: "barbot_glass_2"
+      state_topic: "barbot/glass/2"
+      icon: "mdi:glass-cocktail"
+      device: *barbot_device
+    - name: "BarBot Glas 4"
+      unique_id: "barbot_glass_3"
+      state_topic: "barbot/glass/3"
+      icon: "mdi:glass-cocktail"
+      device: *barbot_device
+    - name: "BarBot Glas 5"
+      unique_id: "barbot_glass_4"
+      state_topic: "barbot/glass/4"
+      icon: "mdi:glass-cocktail"
+      device: *barbot_device
+    - name: "BarBot Glas 6"
+      unique_id: "barbot_glass_5"
+      state_topic: "barbot/glass/5"
+      icon: "mdi:glass-cocktail"
+      device: *barbot_device
+    - name: "BarBot Glas 7"
+      unique_id: "barbot_glass_6"
+      state_topic: "barbot/glass/6"
+      icon: "mdi:glass-cocktail"
+      device: *barbot_device
+    - name: "BarBot Glas 8"
+      unique_id: "barbot_glass_7"
+      state_topic: "barbot/glass/7"
+      icon: "mdi:glass-cocktail"
+      device: *barbot_device
+    - name: "BarBot Glas 9"
+      unique_id: "barbot_glass_8"
+      state_topic: "barbot/glass/8"
+      icon: "mdi:glass-cocktail"
+      device: *barbot_device
+    - name: "BarBot Glas 10"
+      unique_id: "barbot_glass_9"
+      state_topic: "barbot/glass/9"
+      icon: "mdi:glass-cocktail"
+      device: *barbot_device
+    - name: "BarBot Glas 11"
+      unique_id: "barbot_glass_10"
+      state_topic: "barbot/glass/10"
+      icon: "mdi:glass-cocktail"
+      device: *barbot_device
+    - name: "BarBot Glas 12"
+      unique_id: "barbot_glass_11"
+      state_topic: "barbot/glass/11"
+      icon: "mdi:glass-cocktail"
+      device: *barbot_device
+
+    # --- Ballerwagen Binary Sensoren ---
+    - name: "Totmannschalter"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_deadman"
+      state_topic: "bollerwagen/state"
+      value_template: "{{ value_json.deadman }}"
+      payload_on: "True"
+      payload_off: "False"
+      device_class: "safety"
+      device: *ballerwagen_device
+
+    # --- Display Online-Status (openHASP Last Will) ---
+    - name: "Display Online"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_display_lwt"
+      state_topic: "hasp/plate01/LWT"
+      payload_on: "online"
+      payload_off: "offline"
+      device_class: "connectivity"
+      entity_category: "diagnostic"
+      device: *ballerwagen_display
+
+
+  # ==========================================
+  # PLATFORM: SWITCH
+  # ==========================================
+  switch:
+    # --- Ballerwagen ---
+    - name: "Rückwärtsgang"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_direction"
+      state_topic: "bollerwagen/state"
+      value_template: "{{ value_json.direction }}"
+      command_topic: "bollerwagen/cmd/direction"
+      state_on: "R"
+      state_off: "F"
+      payload_on: "R"
+      payload_off: "F"
+      icon: "mdi:car-shift-pattern"
+      device: *ballerwagen_device
+
+
+  # ==========================================
+  # PLATFORM: NUMBER
+  # ==========================================
+  number:
+    # --- Ballerwagen ---
+    - name: "Sollwert Geschwindigkeit"
+      unique_id: "01K9ZE5KM3EDYHYADPMWRPY2Z9_speed_setpoint"
+      state_topic: "bollerwagen/state"
+      value_template: "{{ value_json.rpm_soll }}"
+      command_topic: "bollerwagen/cmd/speed"
+      min: 0
+      max: 100
+      step: 1
+      mode: slider
+      icon: "mdi:gauge"
+      device: *ballerwagen_device
+
+
+  # ==========================================
+  # PLATFORM: IMAGE (Barbot unverändert)
+  # ==========================================
+  image:
+    - name: "BarBot Bild 1"
+      unique_id: "barbot_drink_image_0"
+      url_topic: "barbot/drink/0/image"
+      icon: "mdi:image"
+      device: *barbot_device
+    - name: "BarBot Bild 2"
+      unique_id: "barbot_drink_image_1"
+      url_topic: "barbot/drink/1/image"
+      icon: "mdi:image"
+      device: *barbot_device
+    - name: "BarBot Bild 3"
+      unique_id: "barbot_drink_image_2"
+      url_topic: "barbot/drink/2/image"
+      icon: "mdi:image"
+      device: *barbot_device
+
+  # ==========================================
+  # PLATFORM: TEXT (Barbot unverändert)
+  # ==========================================
+  text:
+    - name: "BarBot Getränk 1 (Blau)"
+      unique_id: "barbot_drink_name_0"
+      state_topic: "barbot/drink/0/name"
+      command_topic: "barbot/drink/0/set"
+      icon: "mdi:bottle-tonic"
+      device: *barbot_device
+    - name: "BarBot Getränk 2 (Rot)"
+      unique_id: "barbot_drink_name_1"
+      state_topic: "barbot/drink/1/name"
+      command_topic: "barbot/drink/1/set"
+      icon: "mdi:bottle-tonic"
+      device: *barbot_device
+    - name: "BarBot Getränk 3 (Gelb)"
+      unique_id: "barbot_drink_name_2"
+      state_topic: "barbot/drink/2/name"
+      command_topic: "barbot/drink/2/set"
+      icon: "mdi:bottle-tonic"
+      device: *barbot_device
+
+  # ==========================================
+  # PLATFORM: SELECT (Barbot unverändert)
+  # ==========================================
+  select:
+    - name: "BarBot Slot 1 Config"
+      unique_id: "barbot_slot_config_0"
+      state_topic: "barbot/slot/0"
+      command_topic: "barbot/slot/0/set"
+      options: ["0", "1", "2", "-1"]
+      icon: "mdi:format-list-bulleted-type"
+      device: *barbot_device
+    - name: "BarBot Slot 2 Config"
+      unique_id: "barbot_slot_config_1"
+      state_topic: "barbot/slot/1"
+      command_topic: "barbot/slot/1/set"
+      options: ["0", "1", "2", "-1"]
+      icon: "mdi:format-list-bulleted-type"
+      device: *barbot_device
+    - name: "BarBot Slot 3 Config"
+      unique_id: "barbot_slot_config_2"
+      state_topic: "barbot/slot/2"
+      command_topic: "barbot/slot/2/set"
+      options: ["0", "1", "2", "-1"]
+      icon: "mdi:format-list-bulleted-type"
+      device: *barbot_device
+    - name: "BarBot Slot 4 Config"
+      unique_id: "barbot_slot_config_3"
+      state_topic: "barbot/slot/3"
+      command_topic: "barbot/slot/3/set"
+      options: ["0", "1", "2", "-1"]
+      icon: "mdi:format-list-bulleted-type"
+      device: *barbot_device
+    - name: "BarBot Slot 5 Config"
+      unique_id: "barbot_slot_config_4"
+      state_topic: "barbot/slot/4"
+      command_topic: "barbot/slot/4/set"
+      options: ["0", "1", "2", "-1"]
+      icon: "mdi:format-list-bulleted-type"
+      device: *barbot_device
+    - name: "BarBot Slot 6 Config"
+      unique_id: "barbot_slot_config_5"
+      state_topic: "barbot/slot/5"
+      command_topic: "barbot/slot/5/set"
+      options: ["0", "1", "2", "-1"]
+      icon: "mdi:format-list-bulleted-type"
+      device: *barbot_device
+    - name: "BarBot Slot 7 Config"
+      unique_id: "barbot_slot_config_6"
+      state_topic: "barbot/slot/6"
+      command_topic: "barbot/slot/6/set"
+      options: ["0", "1", "2", "-1"]
+      icon: "mdi:format-list-bulleted-type"
+      device: *barbot_device
+    - name: "BarBot Slot 8 Config"
+      unique_id: "barbot_slot_config_7"
+      state_topic: "barbot/slot/7"
+      command_topic: "barbot/slot/7/set"
+      options: ["0", "1", "2", "-1"]
+      icon: "mdi:format-list-bulleted-type"
+      device: *barbot_device
+    - name: "BarBot Slot 9 Config"
+      unique_id: "barbot_slot_config_8"
+      state_topic: "barbot/slot/8"
+      command_topic: "barbot/slot/8/set"
+      options: ["0", "1", "2", "-1"]
+      icon: "mdi:format-list-bulleted-type"
+      device: *barbot_device
+    - name: "BarBot Slot 10 Config"
+      unique_id: "barbot_slot_config_9"
+      state_topic: "barbot/slot/9"
+      command_topic: "barbot/slot/9/set"
+      options: ["0", "1", "2", "-1"]
+      icon: "mdi:format-list-bulleted-type"
+      device: *barbot_device
+    - name: "BarBot Slot 11 Config"
+      unique_id: "barbot_slot_config_10"
+      state_topic: "barbot/slot/10"
+      command_topic: "barbot/slot/10/set"
+      options: ["0", "1", "2", "-1"]
+      icon: "mdi:format-list-bulleted-type"
+      device: *barbot_device
+    - name: "BarBot Slot 12 Config"
+      unique_id: "barbot_slot_config_11"
+      state_topic: "barbot/slot/11"
+      command_topic: "barbot/slot/11/set"
+      options: ["0", "1", "2", "-1"]
+      icon: "mdi:format-list-bulleted-type"
+      device: *barbot_device
