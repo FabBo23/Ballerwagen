@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BarBot – Bollerwagen Status</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; overscroll-behavior-y: contain; }
+        .tile { background:#1e293b; border:1px solid #334155; border-radius:0.75rem; }
+        .tile .label { font-size:0.75rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; }
+        .tile .value { font-size:1.5rem; font-weight:700; color:#f8fafc; }
+        .tile .unit  { font-size:0.85rem; color:#94a3b8; margin-left:0.25rem; }
+        .hero        { background:linear-gradient(135deg,#1e3a5f,#0f172a); border:1px solid #38bdf8; }
+        .hero .value { font-size:3rem; font-weight:800; color:#f8fafc; line-height:1; }
+        .badge-on    { background:#065f46; color:#6ee7b7; }
+        .badge-off   { background:#7f1d1d; color:#fca5a5; }
+        .badge-warn  { background:#78350f; color:#fcd34d; }
+        .stale       { opacity:0.5; transition:opacity 0.5s; }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen p-4">
+
+    <!-- ZUGRIFF VERWEIGERT -->
+    <div id="screen-denied" class="hidden h-full flex flex-col justify-center items-center px-4 space-y-6 pt-20">
+        <div class="bg-red-900/30 border border-red-500/50 p-8 rounded-xl max-w-sm text-center">
+            <h2 class="text-2xl font-bold mb-2 text-red-400">Zugriff verweigert</h2>
+            <p class="text-slate-300 text-sm">Bitte scanne den originalen QR-Code auf dem BarBot-Display.</p>
+        </div>
+    </div>
+
+    <!-- APP -->
+    <div id="app-container" class="flex flex-col h-full hidden">
+        <header class="text-center py-4 mb-4 border-b border-slate-700 relative">
+            <a id="back-link" href="index.html" class="absolute left-0 top-1/2 -translate-y-1/2 text-sky-400 text-sm px-2 py-1 rounded hover:text-sky-300">← Zurück</a>
+            <h1 class="text-2xl font-bold text-sky-400">Bollerwagen</h1>
+            <div class="mt-1">
+                <div id="status-dot" class="inline-block w-3 h-3 rounded-full bg-red-500 mr-2"></div>
+                <span id="status-text" class="text-sm text-slate-400">Getrennt</span>
+            </div>
+        </header>
+
+        <main class="flex-1 max-w-md mx-auto w-full space-y-4 pb-8">
+
+            <!-- Verbindungs-Hinweis (taucht bei offline/stale auf) -->
+            <div id="conn-warn" class="hidden bg-amber-900/40 border border-amber-500/40 text-amber-200 text-sm rounded-lg px-4 py-3 text-center"></div>
+
+            <!-- Hero: Geschwindigkeit + SoC -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="hero rounded-xl p-4 text-center">
+                    <div class="label text-sky-200">Geschw.</div>
+                    <div class="value" id="speed">–</div>
+                    <div class="unit">km/h</div>
+                </div>
+                <div class="hero rounded-xl p-4 text-center">
+                    <div class="label text-sky-200">Akku</div>
+                    <div class="value" id="soc">–</div>
+                    <div class="unit">%</div>
+                </div>
+            </div>
+
+            <!-- Status-Badges -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="tile p-3 text-center">
+                    <div class="label">Richtung</div>
+                    <span id="dir-badge" class="inline-block mt-1 px-3 py-1 rounded-full text-sm font-semibold badge-on">–</span>
+                </div>
+                <div class="tile p-3 text-center">
+                    <div class="label">Totmann</div>
+                    <span id="dm-badge" class="inline-block mt-1 px-3 py-1 rounded-full text-sm font-semibold badge-off">–</span>
+                </div>
+            </div>
+
+            <!-- Drehzahl -->
+            <div class="tile p-4">
+                <div class="flex items-baseline justify-between mb-2">
+                    <span class="label">Drehzahl Soll / Ist</span>
+                    <span class="text-xs text-slate-500"><span id="rpm-soll">–</span> / <span id="rpm-ist">–</span> %</span>
+                </div>
+                <div class="relative h-3 bg-slate-900 rounded-full overflow-hidden border border-slate-700">
+                    <div id="rpm-soll-bar" class="absolute top-0 left-0 h-full bg-sky-700 transition-all duration-500" style="width:0%"></div>
+                    <div id="rpm-ist-bar"  class="absolute top-0 left-0 h-full bg-sky-400 transition-all duration-500 opacity-90" style="width:0%"></div>
+                </div>
+            </div>
+
+            <!-- Akku-Werte -->
+            <div class="grid grid-cols-3 gap-3">
+                <div class="tile p-3 text-center">
+                    <div class="label">Spannung</div>
+                    <div class="value text-lg" id="voltage">–</div>
+                    <div class="unit">V</div>
+                </div>
+                <div class="tile p-3 text-center">
+                    <div class="label">Strom</div>
+                    <div class="value text-lg" id="current">–</div>
+                    <div class="unit">A</div>
+                </div>
+                <div class="tile p-3 text-center">
+                    <div class="label">Leistung</div>
+                    <div class="value text-lg" id="power">–</div>
+                    <div class="unit">W</div>
+                </div>
+            </div>
+
+            <!-- Temperatur + Energie -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="tile p-3 text-center">
+                    <div class="label">Motor-Temp</div>
+                    <div class="value text-lg" id="temp">–</div>
+                    <div class="unit">°C</div>
+                </div>
+                <div class="tile p-3 text-center">
+                    <div class="label">Verbraucht</div>
+                    <div class="value text-lg" id="energy">–</div>
+                    <div class="unit">Wh</div>
+                </div>
+            </div>
+
+            <p class="text-center text-xs text-slate-600 pt-2">
+                Letztes Update: <span id="last-update">–</span>
+            </p>
+        </main>
+    </div>
+
+    <script>
+        // ==============================================================================
+        // EINSTELLUNGEN (müssen mit index.html / levels.html übereinstimmen)
+        // ==============================================================================
+        const SECRET_CODE = "party123";
+        const MQTT_BROKER = 'wss://3eb07fcfa5af4fc6b090299bd78da073.s1.eu.hivemq.cloud:8884/mqtt';
+        const MQTT_USER   = 'Barbot';
+        const MQTT_PASS   = 'MQTTBarbot123';
+        // Topics werden über die HA-Mosquitto-Bridge auf den HiveMQ-Cloud-Broker gespiegelt
+        const TOPIC_STATE  = 'bollerwagen/state';
+        const TOPIC_STATUS = 'bollerwagen/status';
+        // Nach so vielen Millisekunden ohne neue Daten wird die Anzeige als "veraltet" markiert
+        const STALE_AFTER_MS = 15000;
+        // ==============================================================================
+
+        const $ = id => document.getElementById(id);
+        let lastStateTs = 0;
+        let staleTimer  = null;
+
+        function init() {
+            const userCode = new URLSearchParams(window.location.search).get('code');
+            if (userCode !== SECRET_CODE) {
+                $('screen-denied').classList.remove('hidden');
+                $('app-container').classList.add('hidden');
+                return;
+            }
+            $('back-link').href = 'index.html?code=' + encodeURIComponent(userCode);
+            $('screen-denied').classList.add('hidden');
+            $('app-container').classList.remove('hidden');
+
+            // Letzten Status aus localStorage holen (überlebt Reload)
+            const cached = localStorage.getItem('bollerwagen_last_state');
+            if (cached) {
+                try { applyState(JSON.parse(cached), true); } catch(_) {}
+            }
+
+            connectMQTT();
+            staleTimer = setInterval(checkStale, 2000);
+        }
+
+        function connectMQTT() {
+            const dot = $('status-dot'), txt = $('status-text');
+            txt.innerText = 'Verbinde...';
+            dot.className  = 'inline-block w-3 h-3 rounded-full bg-yellow-500 mr-2';
+
+            const clientId = 'phone_blw_' + Math.random().toString(36).substr(2, 9);
+            const options = { clientId, clean: true };
+            if (MQTT_USER.trim()) options.username = MQTT_USER.trim();
+            if (MQTT_PASS.trim()) options.password = MQTT_PASS.trim();
+
+            const client = mqtt.connect(MQTT_BROKER, options);
+
+            client.on('connect', () => {
+                txt.innerText = 'Online';
+                dot.className  = 'inline-block w-3 h-3 rounded-full bg-green-500 mr-2';
+                client.subscribe(TOPIC_STATE);
+                client.subscribe(TOPIC_STATUS);
+            });
+
+            client.on('error', () => {
+                txt.innerText = 'Zugriffsfehler';
+                dot.className  = 'inline-block w-3 h-3 rounded-full bg-red-500 mr-2';
+                client.end();
+            });
+
+            client.on('offline', () => {
+                txt.innerText = 'Offline';
+                dot.className  = 'inline-block w-3 h-3 rounded-full bg-red-500 mr-2';
+            });
+
+            client.on('message', (topic, message) => {
+                const msg = message.toString();
+
+                if (topic === TOPIC_STATUS) {
+                    // ESP32 publisht "online" als retained, LWT setzt "offline"
+                    const online = (msg.toLowerCase() === 'online');
+                    setBollerStatus(online);
+                    return;
+                }
+
+                if (topic === TOPIC_STATE) {
+                    try {
+                        const data = JSON.parse(msg);
+                        applyState(data, false);
+                        localStorage.setItem('bollerwagen_last_state', msg);
+                        lastStateTs = Date.now();
+                        clearStale();
+                    } catch (e) {
+                        console.warn('state parse failed', e);
+                    }
+                }
+            });
+        }
+
+        function setBollerStatus(online) {
+            const warn = $('conn-warn');
+            if (online) {
+                warn.classList.add('hidden');
+            } else {
+                warn.classList.remove('hidden');
+                warn.innerText = '⚠ Bollerwagen ist offline.';
+            }
+        }
+
+        function checkStale() {
+            if (lastStateTs && Date.now() - lastStateTs > STALE_AFTER_MS) {
+                document.querySelectorAll('main .tile, main .hero').forEach(el => el.classList.add('stale'));
+                const warn = $('conn-warn');
+                warn.classList.remove('hidden');
+                warn.innerText = '⚠ Keine aktuellen Daten – Anzeige veraltet.';
+            }
+        }
+        function clearStale() {
+            document.querySelectorAll('main .tile, main .hero').forEach(el => el.classList.remove('stale'));
+        }
+
+        // Hilfsfunktion: Zahl sauber formatieren, fällt auf "–" zurück
+        function fmt(v, digits = 1) {
+            if (v === undefined || v === null || v === '' || isNaN(parseFloat(v))) return '–';
+            return parseFloat(v).toFixed(digits);
+        }
+
+        function applyState(d, fromCache) {
+            $('speed').innerText   = fmt(d.speed, 1);
+            $('soc').innerText     = fmt(d.soc, 0);
+            $('voltage').innerText = fmt(d.voltage, 1);
+            $('current').innerText = fmt(d.current, 2);
+            $('power').innerText   = fmt(d.power, 0);
+            $('temp').innerText    = fmt(d.temperature, 1);
+            $('energy').innerText  = fmt(d.energy_wh, 0);
+
+            const soll = parseFloat(d.rpm_soll) || 0;
+            const ist  = parseFloat(d.rpm_ist)  || 0;
+            $('rpm-soll').innerText = fmt(soll, 0);
+            $('rpm-ist').innerText  = fmt(ist, 0);
+            $('rpm-soll-bar').style.width = Math.min(100, Math.max(0, soll)) + '%';
+            $('rpm-ist-bar').style.width  = Math.min(100, Math.max(0, ist))  + '%';
+
+            // Richtung: ESP32 sendet "F" oder "R"
+            const dir = (d.direction || '').toString().toUpperCase();
+            const dirBadge = $('dir-badge');
+            if (dir === 'F')      { dirBadge.innerText = '↑ Vorwärts';   dirBadge.className = 'inline-block mt-1 px-3 py-1 rounded-full text-sm font-semibold badge-on'; }
+            else if (dir === 'R') { dirBadge.innerText = '↓ Rückwärts';  dirBadge.className = 'inline-block mt-1 px-3 py-1 rounded-full text-sm font-semibold badge-warn'; }
+            else                  { dirBadge.innerText = '–';            dirBadge.className = 'inline-block mt-1 px-3 py-1 rounded-full text-sm font-semibold badge-off'; }
+
+            // Totmann: ESP32 sendet boolean true/false (HA-config liest "True"/"False")
+            const dm = (d.deadman === true || d.deadman === 'True' || d.deadman === 'true' || d.deadman === 1);
+            const dmBadge = $('dm-badge');
+            if (dm) { dmBadge.innerText = '✓ Aktiv';      dmBadge.className = 'inline-block mt-1 px-3 py-1 rounded-full text-sm font-semibold badge-on'; }
+            else    { dmBadge.innerText = '⛔ Gesperrt';  dmBadge.className = 'inline-block mt-1 px-3 py-1 rounded-full text-sm font-semibold badge-off'; }
+
+            $('last-update').innerText = fromCache
+                ? '(zuletzt gespeichert)'
+                : new Date().toLocaleTimeString('de-DE');
+        }
+
+        init();
+    </script>
+</body>
+</html>
