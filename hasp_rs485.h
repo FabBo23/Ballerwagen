@@ -19,6 +19,23 @@
 #define HASP_DE_PIN     22      // IO22 → BL3085 DE + #RE
 #define HASP_BAUD   115200
 
+// Halbduplex-RS485 ist tückisch: wenn beide Seiten gleichzeitig senden,
+// kollidieren die Frames. Mit jedem DE-Wechsel auf LOW besteht zudem das
+// Risiko, dass das letzte Bit am Empfänger abgeschnitten wird (TX-Schiebe-
+// register vs. flush-Timing) – manche Auto-Direction-Wandler auf der
+// Display-Seite reagieren darauf besonders empfindlich.
+//
+// HASP_UNIDIRECTIONAL_TX = 1 (Default): DE bleibt nach Setup permanent HIGH.
+//   Der ESP32 sendet zuverlässig zum Display. Display-Buttons (Vor/Rück,
+//   Hupe…) funktionieren NICHT – der Bus ist immer von uns belegt.
+//
+// HASP_UNIDIRECTIONAL_TX = 0: bidirektional. sendHasp() flippt DE wie früher.
+//   Erfordert dass das CYD-Display garantiert still ist (seriallog persistent
+//   auf 0 in der openHASP-config.json) – sonst Frame-Kollisionen.
+#ifndef HASP_UNIDIRECTIONAL_TX
+  #define HASP_UNIDIRECTIONAL_TX 1
+#endif
+
 // Rotation: 1=90° (USB links), 3=270° (USB rechts)
 #define HASP_ROTATION    1
 
@@ -36,7 +53,13 @@
 // ========================= DE-Steuerung =========================
 
 static inline void haspDE(bool tx) {
+#if HASP_UNIDIRECTIONAL_TX
+    // permanent Sendemodus – DE wird nie auf LOW geflippt, das verhindert
+    // jegliches Timing-Risiko am Stop-Bit und vermeidet Bus-Kollisionen.
+    digitalWrite(HASP_DE_PIN, HIGH);
+#else
     digitalWrite(HASP_DE_PIN, tx ? HIGH : LOW);
+#endif
 }
 
 // ========================= Senden =========================
@@ -46,7 +69,9 @@ static void sendHasp(const char* cmd) {
     Serial.print(cmd);
     Serial.print("\n");
     Serial.flush();     // warten bis TX-Schieberegister leer
-    haspDE(false);      // sofort zurück in Empfangsmodus
+#if !HASP_UNIDIRECTIONAL_TX
+    haspDE(false);      // bidirektional: zurück in Empfangsmodus
+#endif
 }
 
 // ========================= Empfangen =========================
@@ -95,6 +120,11 @@ static void haspHandleEvent(const char* line) {
 }
 
 static void haspReceive() {
+#if HASP_UNIDIRECTIONAL_TX
+    // Empfänger ist bei DE=HIGH dauerhaft deaktiviert (#RE=HIGH → RO floating).
+    // Display-Events können nicht ankommen – Funktion ist no-op.
+    return;
+#else
     // DE ist LOW → Empfänger aktiv → Bytes aus dem FIFO lesen
     while (Serial.available()) {
         char c = (char)Serial.read();
@@ -108,6 +138,7 @@ static void haspReceive() {
                 hasp_rxBuf[hasp_rxPos++] = c;
         }
     }
+#endif
 }
 
 // ========================= Display-Update =========================
@@ -205,13 +236,25 @@ static void haspSendUpdate() {
 
 void setupHaspRS485() {
     pinMode(HASP_DE_PIN, OUTPUT);
-    haspDE(false);  // WICHTIG: zuerst Empfangsmodus, sonst ist #RE=HIGH permanent
+
+#if HASP_UNIDIRECTIONAL_TX
+    // Ab hier permanent senden. Setup-Phase ist vorbei → keine Boot-Logs
+    // mehr; alles was jetzt rausgeht, sind echte HASP-Kommandos.
+    digitalWrite(HASP_DE_PIN, HIGH);
+#else
+    haspDE(false);  // bidirektional: zuerst Empfangsmodus
+#endif
 
     Serial.begin(HASP_BAUD, SERIAL_8N1, HASP_RX_PIN, HASP_TX_PIN);
     delay(100);
 
-    // Weckpuls + openHASP-Log abschalten
+    // openHASP-Log abschalten – im unidirektionalen Modus rein vorsorglich,
+    // im bidirektionalen Modus zwingend nötig damit das Display nicht
+    // ungefragt antwortet. Weckpuls (leeres newline) nur im bidirektionalen
+    // Modus, im unidirektionalen flutet der Treiber den Bus eh permanent.
+#if !HASP_UNIDIRECTIONAL_TX
     haspDE(true); Serial.println(); Serial.flush(); haspDE(false); delay(50);
+#endif
     sendHasp("seriallog 0");
     delay(50);
 
