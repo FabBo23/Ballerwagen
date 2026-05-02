@@ -19,6 +19,34 @@
 #define HASP_DE_PIN     22      // IO22 → BL3085 DE + #RE
 #define HASP_BAUD   115200
 
+// ========================= Schnittstellen-Auswahl =========================
+//
+// HASP_IF_RS485 (Default):
+//   Sendet/Empfängt über UART0 (Serial) auf GPIO 1/3 → BL3085 auf der
+//   ES32C14 → RS485 A/B → Wandler an der CYD-Seite. Halbduplex, DE-Pin
+//   über IO22. Funktioniert nur bei sauberer Hardware-Strecke (A/B-Polung,
+//   funktionierender BL3085, Wandler stromversorgt).
+//
+// HASP_IF_TTL_UART1:
+//   TTL direkt ohne Transceiver. Eigene UART1-Instanz mit GPIO 33 (TX)
+//   und GPIO 21 (RX). Vollduplex → Display-Buttons funktionieren ohne
+//   Kollisionsrisiko. Verkabelung:
+//      ESP32 GPIO 33 (TX) ──► CYD UART RX
+//      ESP32 GPIO 21 (RX) ◄── CYD UART TX
+//      ESP32 GND          ──  CYD GND   (zwingend gemeinsam!)
+//   3 m geschirmtes Twisted Pair OK. Bei Aussetzern Baud auf 19200 senken
+//   (HASP_BAUD anpassen UND in der CYD-config.json).
+#define HASP_IF_RS485      0
+#define HASP_IF_TTL_UART1  1
+#ifndef HASP_INTERFACE
+  #define HASP_INTERFACE HASP_IF_RS485
+#endif
+
+// Pins für TTL-Variante (laut config.h und ES32C14-„Free Port" frei)
+#define HASP_TTL_TX_PIN  33
+#define HASP_TTL_RX_PIN  21
+
+// Nur relevant bei HASP_INTERFACE == HASP_IF_RS485:
 // Halbduplex-RS485 ist tückisch: wenn beide Seiten gleichzeitig senden,
 // kollidieren die Frames. Mit jedem DE-Wechsel auf LOW besteht zudem das
 // Risiko, dass das letzte Bit am Empfänger abgeschnitten wird (TX-Schiebe-
@@ -30,10 +58,23 @@
 //   Hupe…) funktionieren NICHT – der Bus ist immer von uns belegt.
 //
 // HASP_UNIDIRECTIONAL_TX = 0: bidirektional. sendHasp() flippt DE wie früher.
-//   Erfordert dass das CYD-Display garantiert still ist (seriallog persistent
-//   auf 0 in der openHASP-config.json) – sonst Frame-Kollisionen.
+//   Erfordert dass das CYD-Display garantiert still ist (seriallog 0)
+//   – sonst Frame-Kollisionen.
+//
+// Bei HASP_INTERFACE == HASP_IF_TTL_UART1 wird dieses Flag IGNORIERT –
+// TTL ist immer vollduplex und Display-Buttons sind nutzbar.
 #ifndef HASP_UNIDIRECTIONAL_TX
   #define HASP_UNIDIRECTIONAL_TX 1
+#endif
+
+// ========================= Port-Auswahl =========================
+// Eine eigene UART1-Instanz nur instanziieren, wenn TTL ausgewählt ist.
+// HASP_PORT zeigt im jeweiligen Modus auf den richtigen Stream.
+#if HASP_INTERFACE == HASP_IF_TTL_UART1
+  HardwareSerial haspSerial(1);
+  #define HASP_PORT haspSerial
+#else
+  #define HASP_PORT Serial
 #endif
 
 // Rotation: 1=90° (USB links), 3=270° (USB rechts)
@@ -53,7 +94,10 @@
 // ========================= DE-Steuerung =========================
 
 static inline void haspDE(bool tx) {
-#if HASP_UNIDIRECTIONAL_TX
+#if HASP_INTERFACE == HASP_IF_TTL_UART1
+    // TTL: kein Transceiver, keine Richtungssteuerung
+    (void)tx;
+#elif HASP_UNIDIRECTIONAL_TX
     // permanent Sendemodus – DE wird nie auf LOW geflippt, das verhindert
     // jegliches Timing-Risiko am Stop-Bit und vermeidet Bus-Kollisionen.
     digitalWrite(HASP_DE_PIN, HIGH);
@@ -66,11 +110,11 @@ static inline void haspDE(bool tx) {
 
 static void sendHasp(const char* cmd) {
     haspDE(true);
-    Serial.print(cmd);
-    Serial.print("\n");
-    Serial.flush();     // warten bis TX-Schieberegister leer
-#if !HASP_UNIDIRECTIONAL_TX
-    haspDE(false);      // bidirektional: zurück in Empfangsmodus
+    HASP_PORT.print(cmd);
+    HASP_PORT.print("\n");
+    HASP_PORT.flush();     // warten bis TX-Schieberegister leer
+#if HASP_INTERFACE == HASP_IF_RS485 && !HASP_UNIDIRECTIONAL_TX
+    haspDE(false);         // RS485-Bidi: zurück in Empfangsmodus
 #endif
 }
 
@@ -96,38 +140,82 @@ static void haspApplyDirection(bool forward) {
 static void haspHandleEvent(const char* line) {
     if (!strstr(line, "\"event\":\"up\"")) return;
 
-    const char* arrow = strstr(line, " => {");
-    if (!arrow) return;
+    int page = -1, id = -1;
 
-    int bPos = -1, pPos = -1;
-    for (int i = (int)(arrow - line) - 1; i >= 0; i--) {
-        if (line[i] == 'b') { bPos = i; break; }
-    }
-    if (bPos > 0) {
-        for (int i = bPos - 1; i >= 0; i--) {
-            if (line[i] == 'p') { pPos = i; break; }
+    // Format A – openHASP-Log mit "p<n>b<m> => {…}" (seriallog >= 3):
+    const char* arrow = strstr(line, " => {");
+    if (arrow) {
+        int aPos = (int)(arrow - line);
+        int bPos = -1, pPos = -1;
+        for (int i = aPos - 1; i >= 0; i--) {
+            if (line[i] == 'b') { bPos = i; break; }
+        }
+        if (bPos > 0) {
+            for (int i = bPos - 1; i >= 0; i--) {
+                if (line[i] == 'p') { pPos = i; break; }
+            }
+        }
+        if (pPos >= 0 && bPos > pPos) {
+            page = atoi(line + pPos + 1);
+            id   = atoi(line + bPos + 1);
         }
     }
-    if (pPos < 0 || bPos < 0) return;
 
-    int page = atoi(line + pPos + 1);
-    int id   = atoi(line + bPos + 1);
+    // Format B – bare JSON (neuere openHASP-Versionen): "...","hasp":"p1b20","..."
+    if (page < 0) {
+        const char* h = strstr(line, "\"hasp\":\"p");
+        if (h) {
+            h += 9;                  // hinter dem 'p'
+            page = atoi(h);
+            const char* b = strchr(h, 'b');
+            if (b) id = atoi(b + 1);
+        }
+    }
 
-    if (page != 1) return;
+    if (page < 0 || id < 0) return;
 
-    if      (id == 20) haspApplyDirection(true);
-    else if (id == 21) haspApplyDirection(false);
+    // Page 1 (Dashboard): nur Vor/Rück
+    if (page == 1) {
+        if      (id == 20) haspApplyDirection(true);
+        else if (id == 21) haspApplyDirection(false);
+        return;
+    }
+
+    // Page 2 (Steuerung): Speed ±, STOP, Vor/Rück, Hupe
+    if (page == 2) {
+        // Vor/Rück haben eigenen Mutex in haspApplyDirection – muss VOR
+        // dem xSemaphoreTake stehen, sonst Deadlock (Mutex nicht rekursiv).
+        if (id == 20) { haspApplyDirection(true);  return; }
+        if (id == 21) { haspApplyDirection(false); return; }
+
+        if (dataMutex != NULL && xSemaphoreTake(dataMutex, pdMS_TO_TICKS(100))) {
+            if (id == 10) {
+                drehzahlSollwert = max(drehzahlSollwert - drehzahlSchrittweite, 0);
+            } else if (id == 11) {
+                drehzahlSollwert = min(drehzahlSollwert + drehzahlSchrittweite, 100);
+            } else if (id == 12) {
+                // STOP – Sollwert sofort auf 0
+                drehzahlSollwert = 0;
+            } else if (id == 30) {
+                // Hupe (kurzer Druck)
+                digitalWrite(RELAY_CH4_PIN, HIGH);
+                hornStopTime           = millis() + hornShortPressDurationMs;
+                hornButtonPhysicalHeld = false;
+            }
+            xSemaphoreGive(dataMutex);
+        }
+    }
 }
 
 static void haspReceive() {
-#if HASP_UNIDIRECTIONAL_TX
-    // Empfänger ist bei DE=HIGH dauerhaft deaktiviert (#RE=HIGH → RO floating).
-    // Display-Events können nicht ankommen – Funktion ist no-op.
+#if HASP_INTERFACE == HASP_IF_RS485 && HASP_UNIDIRECTIONAL_TX
+    // RS485 unidirektional: Empfänger ist bei DE=HIGH dauerhaft deaktiviert
+    // (#RE=HIGH → RO floating). Display-Events können nicht ankommen.
     return;
 #else
-    // DE ist LOW → Empfänger aktiv → Bytes aus dem FIFO lesen
-    while (Serial.available()) {
-        char c = (char)Serial.read();
+    // RS485-Bidi oder TTL (vollduplex) – Bytes aus dem FIFO lesen
+    while (HASP_PORT.available()) {
+        char c = (char)HASP_PORT.read();
         if (c == '\r') continue;
         if (c == '\n') {
             hasp_rxBuf[hasp_rxPos] = '\0';
@@ -235,27 +323,39 @@ static void haspSendUpdate() {
 // ========================= Öffentliche API =========================
 
 void setupHaspRS485() {
+#if HASP_INTERFACE == HASP_IF_RS485
+    // ----- RS485 / BL3085 -----
     pinMode(HASP_DE_PIN, OUTPUT);
-
-#if HASP_UNIDIRECTIONAL_TX
+  #if HASP_UNIDIRECTIONAL_TX
     // Ab hier permanent senden. Setup-Phase ist vorbei → keine Boot-Logs
     // mehr; alles was jetzt rausgeht, sind echte HASP-Kommandos.
     digitalWrite(HASP_DE_PIN, HIGH);
-#else
+  #else
     haspDE(false);  // bidirektional: zuerst Empfangsmodus
-#endif
+  #endif
 
     Serial.begin(HASP_BAUD, SERIAL_8N1, HASP_RX_PIN, HASP_TX_PIN);
     delay(100);
 
-    // openHASP-Log abschalten – im unidirektionalen Modus rein vorsorglich,
-    // im bidirektionalen Modus zwingend nötig damit das Display nicht
-    // ungefragt antwortet. Weckpuls (leeres newline) nur im bidirektionalen
-    // Modus, im unidirektionalen flutet der Treiber den Bus eh permanent.
-#if !HASP_UNIDIRECTIONAL_TX
+  #if !HASP_UNIDIRECTIONAL_TX
+    // Weckpuls (leeres newline) im bidirektionalen Modus – stößt openHASP
+    // an, falls es nach dem Boot noch in einer komischen Lock-Phase ist.
     haspDE(true); Serial.println(); Serial.flush(); haspDE(false); delay(50);
+  #endif
+#else
+    // ----- TTL UART1 (vollduplex, kein Transceiver) -----
+    haspSerial.begin(HASP_BAUD, SERIAL_8N1, HASP_TTL_RX_PIN, HASP_TTL_TX_PIN);
+    delay(100);
 #endif
+
+    // Logging-Level auf der CYD setzen:
+    //  - RS485 unidirektional: 0 (kein Empfang ohnehin – Bus möglichst still)
+    //  - sonst: 3 (Info-Level inkl. STATE-Logs → Button-Events landen im Parser)
+#if HASP_INTERFACE == HASP_IF_RS485 && HASP_UNIDIRECTIONAL_TX
     sendHasp("seriallog 0");
+#else
+    sendHasp("seriallog 3");
+#endif
     delay(50);
 
     char rotCmd[40];
