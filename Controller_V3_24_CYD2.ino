@@ -152,9 +152,24 @@ void mqttTaskCode(void * pvParameters) {
 }
 
 void setup() {
+#ifdef HASP_RS485_ENABLED
+    // RS485 Direction-Pin als ALLERERSTES auf LOW (Receive-Modus).
+    // Damit ist der BL3085-Treiber deaktiviert; alle nachfolgenden
+    // Serial.print*-Aufrufe in setupXxx()-Funktionen verpuffen harmlos
+    // am disabled DI und können das Display nicht stören. Setzen wir
+    // das später, würden Setup-Logs (LittleFS, WLAN, MQTT, …) als
+    // Müll auf dem RS485-Bus landen, sobald der Pin floating zufällig
+    // HIGH ist – auf der ES32C14-Platine gibt es keinen externen
+    // Pull-Down auf dem DE-Signal.
+    pinMode(HASP_DE_PIN, OUTPUT);
+    digitalWrite(HASP_DE_PIN, LOW);
+#endif
+
     Serial.begin(115200);
     while (!Serial && millis() < 1000);
-    if (Serial) Serial.println("\n--- Bollerwagen ESP32 Start ---");
+#ifndef HASP_RS485_ENABLED
+    Serial.println("\n--- Bollerwagen ESP32 Start ---");
+#endif
 
     EEPROM.begin(EEPROM_SIZE);
     setupPins();
