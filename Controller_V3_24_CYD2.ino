@@ -152,7 +152,7 @@ void mqttTaskCode(void * pvParameters) {
 }
 
 void setup() {
-#ifdef HASP_RS485_ENABLED
+#if defined(HASP_RS485_ENABLED) && HASP_INTERFACE == HASP_IF_RS485
     // RS485 Direction-Pin als ALLERERSTES auf LOW (Receive-Modus).
     // Damit ist der BL3085-Treiber deaktiviert; alle nachfolgenden
     // Serial.print*-Aufrufe in setupXxx()-Funktionen verpuffen harmlos
@@ -161,6 +161,8 @@ void setup() {
     // Müll auf dem RS485-Bus landen, sobald der Pin floating zufällig
     // HIGH ist – auf der ES32C14-Platine gibt es keinen externen
     // Pull-Down auf dem DE-Signal.
+    // Im TTL-Modus (HASP_INTERFACE == HASP_IF_TTL_UART1) entfällt das
+    // komplett, da kein Transceiver dazwischen sitzt.
     pinMode(HASP_DE_PIN, OUTPUT);
     digitalWrite(HASP_DE_PIN, LOW);
 #endif
