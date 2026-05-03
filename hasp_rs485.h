@@ -39,7 +39,7 @@
 #define HASP_IF_RS485      0
 #define HASP_IF_TTL_UART1  1
 #ifndef HASP_INTERFACE
-  #define HASP_INTERFACE HASP_IF_RS485
+  #define HASP_INTERFACE HASP_IF_TTL_UART1
 #endif
 
 // Pins für TTL-Variante (laut config.h und ES32C14-„Free Port" frei)
