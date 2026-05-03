@@ -2,7 +2,7 @@
 
 // ========================= Firmware-Version =========================
 // Bitte bei jeder Veröffentlichung erhöhen und einen Git-Tag (z.B. v1.0.1) erstellen.
-#define FIRMWARE_VERSION "1.0.4"
+#define FIRMWARE_VERSION "1.0.5"
 
 // ========================= WiFi AP (Fallback-Hotspot) =========================
 #define AP_SSID     "Bollerwagen"
