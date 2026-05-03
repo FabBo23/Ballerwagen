@@ -66,8 +66,10 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     const char* suffix = topic + baseLen + 1;
 
     // KEIN portMAX_DELAY: läuft auf Core 0 (MQTT-Task).
-    // Falls Webserver den Mutex hält, lieber dieses Kommando verwerfen.
-    if (dataMutex != NULL && xSemaphoreTake(dataMutex, pdMS_TO_TICKS(500))) {
+    // 200ms wie an anderen Callsites – falls Webserver den Mutex hält,
+    // lieber dieses Kommando verwerfen, der nächste MQTT-Befehl kommt eh
+    // gleich wieder (HA pollt typisch <1s).
+    if (dataMutex != NULL && xSemaphoreTake(dataMutex, pdMS_TO_TICKS(200))) {
 
         if (strcmp(suffix, "cmd/speed") == 0) {
             int val = atoi(msg);
