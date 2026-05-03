@@ -4,6 +4,31 @@
 // Bitte bei jeder Veröffentlichung erhöhen und einen Git-Tag (z.B. v1.0.1) erstellen.
 #define FIRMWARE_VERSION "1.0.5"
 
+// ========================= USB-Serial Debug =========================
+// 0 (Default): keine Debug-Ausgaben über USB-Serial. Saubere Konsole, kein
+//              Risiko dass Debug-Bytes auf den HASP-Bus rutschen.
+// 1: aktiviert Print-Statements (WLAN, MQTT, LittleFS, Konfig, Diagnose…)
+//    auf der USB-Konsole bei 115200 Baud.
+//
+// ⚠ NICHT auf 1 setzen wenn HASP_INTERFACE = HASP_IF_RS485 ist!
+//   Bei RS485 liegt UART0 (Serial) auf dem BL3085-DI – jeder Print würde
+//   auf dem RS485-Bus landen und das Display stören.
+//   Im TTL-Modus (HASP_INTERFACE = HASP_IF_TTL_UART1) oder wenn HASP
+//   komplett aus ist (HASP_RS485_ENABLED auskommentiert): sicher.
+#ifndef USB_SERIAL_DEBUG
+  #define USB_SERIAL_DEBUG 0
+#endif
+
+#if USB_SERIAL_DEBUG
+  #define DBG_PRINT(...)    Serial.print(__VA_ARGS__)
+  #define DBG_PRINTLN(...)  Serial.println(__VA_ARGS__)
+  #define DBG_PRINTF(...)   Serial.printf(__VA_ARGS__)
+#else
+  #define DBG_PRINT(...)    ((void)0)
+  #define DBG_PRINTLN(...)  ((void)0)
+  #define DBG_PRINTF(...)   ((void)0)
+#endif
+
 // ========================= WiFi AP (Fallback-Hotspot) =========================
 #define AP_SSID     "Bollerwagen"
 #define AP_PASSWORD "password123"

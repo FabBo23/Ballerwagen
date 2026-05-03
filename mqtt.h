@@ -27,17 +27,12 @@ void loadMqttConfig() {
     if (!mqttTopic[0] || (uint8_t)mqttTopic[0]==0xFF)
         strlcpy(mqttTopic, "bollerwagen", sizeof(mqttTopic));
 
-    // loadMqttConfig() wird vor setupHaspRS485() aufgerufen → Serial ist hier noch USB
-#ifndef HASP_RS485_ENABLED
-    if (Serial) {
-        Serial.println("--- MQTT Konfiguration ---");
-        Serial.print("Aktiviert: "); Serial.println(mqttEnabled ? "ja" : "nein");
-        Serial.print("Broker:    "); Serial.print(mqttBroker); Serial.print(":"); Serial.println(mqttPort);
-        Serial.print("Topic:     "); Serial.println(mqttTopic);
-        Serial.println("(kein TLS – plain TCP)");
-        Serial.println("--------------------------");
-    }
-#endif
+    DBG_PRINTLN("--- MQTT Konfiguration ---");
+    DBG_PRINT("Aktiviert: "); DBG_PRINTLN(mqttEnabled ? "ja" : "nein");
+    DBG_PRINT("Broker:    "); DBG_PRINT(mqttBroker); DBG_PRINT(":"); DBG_PRINTLN(mqttPort);
+    DBG_PRINT("Topic:     "); DBG_PRINTLN(mqttTopic);
+    DBG_PRINTLN("(kein TLS – plain TCP)");
+    DBG_PRINTLN("--------------------------");
 }
 
 void saveMqttConfig() {
@@ -64,12 +59,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     size_t len = min((size_t)length, sizeof(msg)-1);
     memcpy(msg, payload, len);
 
-    // Serial-Debug nur ohne RS485 – sonst landen die Bytes auf dem RS485-Bus!
-#ifndef HASP_RS485_ENABLED
-    if (Serial) {
-        Serial.print("MQTT ← ["); Serial.print(topic); Serial.print("] "); Serial.println(msg);
-    }
-#endif
+    DBG_PRINT("MQTT ← ["); DBG_PRINT(topic); DBG_PRINT("] "); DBG_PRINTLN(msg);
 
     size_t baseLen = strlen(mqttTopic);
     if (strncmp(topic, mqttTopic, baseLen) != 0 || topic[baseLen] != '/') return;
@@ -170,9 +160,7 @@ void manageMqtt() {
         mqttWasOffline = false;
         mqttWifiReadyTime = millis();
         lastMqttReconnectAttempt = millis() + 2000;
-#ifndef HASP_RS485_ENABLED
-        if (Serial) Serial.println("MQTT: WiFi wieder da, warte 5s...");
-#endif
+        DBG_PRINTLN("MQTT: WiFi wieder da, warte 5s...");
     }
     if (mqttWifiReadyTime > 0 && (millis() - mqttWifiReadyTime) < MQTT_WIFI_SETTLE_MS) return;
     mqttWifiReadyTime = 0;
@@ -188,12 +176,8 @@ void manageMqtt() {
         uint8_t mac[6]; WiFi.macAddress(mac);
         snprintf(clientId, sizeof(clientId), "bollerwagen_%02x%02x%02x", mac[3], mac[4], mac[5]);
 
-#ifndef HASP_RS485_ENABLED
-        if (Serial) {
-            Serial.print("MQTT: Verbinde "); Serial.print(mqttBroker);
-            Serial.print(":"); Serial.println(mqttPort);
-        }
-#endif
+        DBG_PRINT("MQTT: Verbinde "); DBG_PRINT(mqttBroker);
+        DBG_PRINT(":"); DBG_PRINTLN(mqttPort);
 
         bool ok = mqttUser[0]
             ? mqttClient.connect(clientId, mqttUser, mqttPass)
@@ -202,9 +186,7 @@ void manageMqtt() {
         if (ok) {
             mqttConnected = true;
             mqttReconnectInterval = 5000UL;
-#ifndef HASP_RS485_ENABLED
-            if (Serial) Serial.println("MQTT: Verbunden!");
-#endif
+            DBG_PRINTLN("MQTT: Verbunden!");
             char t[80];
             snprintf(t, sizeof(t), "%s/cmd/speed",     mqttTopic); mqttClient.subscribe(t);
             snprintf(t, sizeof(t), "%s/cmd/direction", mqttTopic); mqttClient.subscribe(t);
@@ -212,13 +194,9 @@ void manageMqtt() {
             snprintf(t, sizeof(t), "%s/status",        mqttTopic); mqttClient.publish(t, "online", true);
         } else {
             if (mqttReconnectInterval < 60000UL) mqttReconnectInterval *= 2;
-#ifndef HASP_RS485_ENABLED
-            if (Serial) {
-                Serial.print("MQTT: Fehler rc="); Serial.print(mqttClient.state());
-                Serial.print(", nächster Versuch in ");
-                Serial.print(mqttReconnectInterval/1000); Serial.println("s");
-            }
-#endif
+            DBG_PRINT("MQTT: Fehler rc="); DBG_PRINT(mqttClient.state());
+            DBG_PRINT(", nächster Versuch in ");
+            DBG_PRINT(mqttReconnectInterval/1000); DBG_PRINTLN("s");
         }
     } else {
         mqttConnected = true;
@@ -236,12 +214,7 @@ void setupMqtt() {
     mqttClient.setCallback(mqttCallback);
     mqttClient.setKeepAlive(60);
     mqttClient.setBufferSize(512);
-    // setupMqtt() läuft vor setupHaspRS485() → Serial ist noch USB
-#ifndef HASP_RS485_ENABLED
-    if (Serial) {
-        Serial.print("MQTT: Broker="); Serial.print(mqttBroker);
-        Serial.print(":"); Serial.print(mqttPort);
-        Serial.print("  Aktiviert="); Serial.println(mqttEnabled ? "ja" : "nein");
-    }
-#endif
+    DBG_PRINT("MQTT: Broker="); DBG_PRINT(mqttBroker);
+    DBG_PRINT(":"); DBG_PRINT(mqttPort);
+    DBG_PRINT("  Aktiviert="); DBG_PRINTLN(mqttEnabled ? "ja" : "nein");
 }

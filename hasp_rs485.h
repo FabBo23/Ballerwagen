@@ -53,16 +53,16 @@
 // register vs. flush-Timing) – manche Auto-Direction-Wandler auf der
 // Display-Seite reagieren darauf besonders empfindlich.
 //
-// HASP_UNIDIRECTIONAL_TX = 1 (Default): DE bleibt nach Setup permanent HIGH.
-//   Der ESP32 sendet zuverlässig zum Display. Display-Buttons (Vor/Rück,
-//   Hupe…) funktionieren NICHT – der Bus ist immer von uns belegt.
+// HASP_UNIDIRECTIONAL_TX – nur im RS485-Modus relevant!
+// = 1 (Default): RS485 TX-Only. DE permanent HIGH → kein Stop-Bit-Risiko,
+//   keine Bus-Kollisionen (#RE=HIGH → Empfänger-IC abgeschaltet).
+//   Display-Buttons funktionieren in diesem Modus NICHT.
+// = 0: RS485 bidirektional. sendHasp() flippt DE wie früher. Erfordert,
+//   dass openHASP NUR auf Befehl sendet (sonst Frame-Kollisionen).
 //
-// HASP_UNIDIRECTIONAL_TX = 0: bidirektional. sendHasp() flippt DE wie früher.
-//   Erfordert dass das CYD-Display garantiert still ist (seriallog 0)
-//   – sonst Frame-Kollisionen.
-//
-// Bei HASP_INTERFACE == HASP_IF_TTL_UART1 wird dieses Flag IGNORIERT –
-// TTL ist immer vollduplex und Display-Buttons sind nutzbar.
+// Im TTL-Modus (HASP_INTERFACE == HASP_IF_TTL_UART1) wird dieser Toggle
+// IGNORIERT – TTL ist physisch vollduplex und immer bidirektional, da
+// kein Half-Duplex-Bus die Richtungen blockiert. Display-Buttons immer ok.
 #ifndef HASP_UNIDIRECTIONAL_TX
   #define HASP_UNIDIRECTIONAL_TX 1
 #endif
@@ -209,11 +209,10 @@ static void haspHandleEvent(const char* line) {
 
 static void haspReceive() {
 #if HASP_INTERFACE == HASP_IF_RS485 && HASP_UNIDIRECTIONAL_TX
-    // RS485 unidirektional: Empfänger ist bei DE=HIGH dauerhaft deaktiviert
-    // (#RE=HIGH → RO floating). Display-Events können nicht ankommen.
+    // RS485 TX-Only: Empfänger ist abgeschaltet (#RE=HIGH → RO floating)
     return;
 #else
-    // RS485-Bidi oder TTL (vollduplex) – Bytes aus dem FIFO lesen
+    // RS485 bidirektional ODER TTL (immer bidirektional) – Bytes aus dem FIFO lesen
     while (HASP_PORT.available()) {
         char c = (char)HASP_PORT.read();
         if (c == '\r') continue;
@@ -343,14 +342,14 @@ void setupHaspRS485() {
     haspDE(true); Serial.println(); Serial.flush(); haspDE(false); delay(50);
   #endif
 #else
-    // ----- TTL UART1 (vollduplex, kein Transceiver) -----
+    // ----- TTL UART1 (kein Transceiver, IMMER vollduplex) -----
     haspSerial.begin(HASP_BAUD, SERIAL_8N1, HASP_TTL_RX_PIN, HASP_TTL_TX_PIN);
     delay(100);
 #endif
 
     // Logging-Level auf der CYD setzen:
-    //  - RS485 unidirektional: 0 (kein Empfang ohnehin – Bus möglichst still)
-    //  - sonst: 3 (Info-Level inkl. STATE-Logs → Button-Events landen im Parser)
+    //  - RS485 TX-Only: 0 (kein Empfang, Bus möglichst still)
+    //  - sonst (RS485-Bidi oder TTL): 3 (STATE-Events landen im Parser)
 #if HASP_INTERFACE == HASP_IF_RS485 && HASP_UNIDIRECTIONAL_TX
     sendHasp("seriallog 0");
 #else

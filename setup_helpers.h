@@ -4,19 +4,19 @@
 
 void setupLittleFS() {
     if (!LittleFS.begin(true)) {
-        if (Serial) Serial.println("FEHLER: LittleFS konnte nicht gestartet werden!");
+        DBG_PRINTLN("FEHLER: LittleFS konnte nicht gestartet werden!");
         return;
     }
-    if (Serial) {
-        Serial.println("LittleFS gestartet.");
-        File root = LittleFS.open("/");
-        File file = root.openNextFile();
-        while (file) {
-            Serial.print("  Datei: "); Serial.print(file.name());
-            Serial.print("  (");       Serial.print(file.size()); Serial.println(" Bytes)");
-            file = root.openNextFile();
-        }
+    DBG_PRINTLN("LittleFS gestartet.");
+#if USB_SERIAL_DEBUG
+    File root = LittleFS.open("/");
+    File file = root.openNextFile();
+    while (file) {
+        DBG_PRINT("  Datei: "); DBG_PRINT(file.name());
+        DBG_PRINT("  (");       DBG_PRINT(file.size()); DBG_PRINTLN(" Bytes)");
+        file = root.openNextFile();
     }
+#endif
 }
 
 // ========================= WiFi =========================
@@ -44,45 +44,41 @@ void setupWifi() {
     bool hasCredentials = (strlen(storedSSID) > 0 && storedSSID[0] != (char)0xFF);
 
     if (hasCredentials) {
-        if (Serial) { Serial.print("WLAN: Verbinde mit \""); Serial.print(storedSSID); Serial.println("\"..."); }
-        
+        DBG_PRINT("WLAN: Verbinde mit \""); DBG_PRINT(storedSSID); DBG_PRINTLN("\"...");
+
         // NUR Station-Modus aktivieren, um Verbindungsversuch zu starten (kein AP)
         WiFi.mode(WIFI_STA);
         WiFi.begin(storedSSID, storedPass);
-        
+
         int attempts = 0;
         while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-            delay(500); if (Serial) Serial.print("."); attempts++;
+            delay(500); DBG_PRINT("."); attempts++;
         }
-        
+
         if (WiFi.status() == WL_CONNECTED) {
             wifiSTAConnected = true;
-            if (Serial) {
-                Serial.println("\nWLAN verbunden!");
-                Serial.print("STA-IP: "); Serial.println(WiFi.localIP());
-            }
+            DBG_PRINTLN("\nWLAN verbunden!");
+            DBG_PRINT("STA-IP: "); DBG_PRINTLN(WiFi.localIP());
             // Zur Sicherheit nochmal AP explizit ausschalten
             WiFi.mode(WIFI_STA);
-            WiFi.softAPdisconnect(true); 
+            WiFi.softAPdisconnect(true);
         } else {
             wifiSTAConnected = false;
-            if (Serial) Serial.println("\nVerbindung fehlgeschlagen. Starte Access Point (Fallback).");
-            
+            DBG_PRINTLN("\nVerbindung fehlgeschlagen. Starte Access Point (Fallback).");
+
             // Fallback: Nur AP-Modus, da Router nicht erreichbar
             WiFi.disconnect(); // Alte STA-Versuche stoppen
             WiFi.mode(WIFI_AP);
             WiFi.softAP(AP_SSID, AP_PASSWORD);
-            if (Serial) { Serial.print("AP-IP: "); Serial.println(WiFi.softAPIP()); }
+            DBG_PRINT("AP-IP: "); DBG_PRINTLN(WiFi.softAPIP());
         }
     } else {
         // Keine Credentials vorhanden -> direkt in AP Modus
         WiFi.disconnect();
         WiFi.mode(WIFI_AP);
         WiFi.softAP(AP_SSID, AP_PASSWORD);
-        if (Serial) {
-            Serial.println("Keine WLAN-Zugangsdaten. Nur Hotspot.");
-            Serial.print("AP-IP: "); Serial.println(WiFi.softAPIP());
-        }
+        DBG_PRINTLN("Keine WLAN-Zugangsdaten. Nur Hotspot.");
+        DBG_PRINT("AP-IP: "); DBG_PRINTLN(WiFi.softAPIP());
     }
 }
 
@@ -90,7 +86,7 @@ void setupWifi() {
 
 void setupVeDirect() {
     veDirectSerial.begin(19200, SERIAL_8N1, VE_DIRECT_RX_PIN, -1);
-    if (Serial) Serial.println(veDirectSerial ? "VE.Direct (Serial2) gestartet." : "FEHLER: VE.Direct!");
+    DBG_PRINTLN(veDirectSerial ? "VE.Direct (Serial2) gestartet." : "FEHLER: VE.Direct!");
 }
 
 void setupTempSensor() {
@@ -100,9 +96,7 @@ void setupTempSensor() {
     if (sensors.getAddress(sensorDeviceAddress, 0)) {
         sensors.setResolution(sensorDeviceAddress, 10);
     } else {
-#ifndef HASP_RS485_ENABLED
-        if (Serial) Serial.println("WARN: Kein DS18B20 am OneWire-Bus gefunden.");
-#endif
+        DBG_PRINTLN("WARN: Kein DS18B20 am OneWire-Bus gefunden.");
     }
 }
 
@@ -146,15 +140,13 @@ void loadConfigFromEEPROM() {
 
     if (dirty) EEPROM.commit();
 
-    if (Serial) {
-        Serial.println("--- Geladene Konfiguration ---");
-        Serial.print("Schrittweite: "); Serial.print(drehzahlSchrittweite); Serial.println(" %");
-        Serial.print("Verzögerung: ");  Serial.print(rampDelay);            Serial.println(" ms");
-        Serial.print("Radumfang: ");    Serial.print(WHEEL_CIRCUMFERENCE_M, 3); Serial.println(" m");
-        Serial.print("Impulse/U: ");    Serial.println(PULSES_PER_REVOLUTION);
-        Serial.print("HupeKurz: ");     Serial.print(hornShortPressDurationMs); Serial.println(" ms");
-        Serial.print("HupeMax: ");      Serial.print(hornMaxPressDurationMs);   Serial.println(" ms");
-        Serial.print("M-Taste: ");      Serial.print(mButtonLongPressDurationMs); Serial.println(" ms");
-        Serial.println("----------------------------");
-    }
+    DBG_PRINTLN("--- Geladene Konfiguration ---");
+    DBG_PRINT("Schrittweite: "); DBG_PRINT(drehzahlSchrittweite); DBG_PRINTLN(" %");
+    DBG_PRINT("Verzögerung: ");  DBG_PRINT(rampDelay);            DBG_PRINTLN(" ms");
+    DBG_PRINT("Radumfang: ");    DBG_PRINT(WHEEL_CIRCUMFERENCE_M, 3); DBG_PRINTLN(" m");
+    DBG_PRINT("Impulse/U: ");    DBG_PRINTLN(PULSES_PER_REVOLUTION);
+    DBG_PRINT("HupeKurz: ");     DBG_PRINT(hornShortPressDurationMs); DBG_PRINTLN(" ms");
+    DBG_PRINT("HupeMax: ");      DBG_PRINT(hornMaxPressDurationMs);   DBG_PRINTLN(" ms");
+    DBG_PRINT("M-Taste: ");      DBG_PRINT(mButtonLongPressDurationMs); DBG_PRINTLN(" ms");
+    DBG_PRINTLN("----------------------------");
 }
