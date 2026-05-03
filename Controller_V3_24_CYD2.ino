@@ -206,6 +206,7 @@ void setup() {
 
 // ========================= Loop =========================
 
+void loop() {
     // Diagnose und Serial-Eingabe nur wenn USB-Serial-Debug aktiv ist.
     // Bei RS485-HASP ist Serial = RS485-Bus → würde das Display stören; im
     // TTL-Modus oder ganz ohne HASP ist Serial frei für USB-Konsole.
