@@ -111,12 +111,8 @@ void manageMButton() {
             drehrichtungR = !drehrichtungR;
             drehzahlSollwert = 0;
             digitalWrite(RELAY_RUECKWAERTS_PIN, drehrichtungR ? HIGH : LOW);
-#ifndef HASP_RS485_ENABLED
-            if (Serial) {
-                Serial.print("M-Taste lang: Richtung → ");
-                Serial.println(drehrichtungF ? "Vorwärts" : "Rückwärts");
-            }
-#endif
+            DBG_PRINT("M-Taste lang: Richtung → ");
+            DBG_PRINTLN(drehrichtungF ? "Vorwärts" : "Rückwärts");
             mButtonLongPressActionDone = true;
         }
     } else {
@@ -153,18 +149,14 @@ void manageHornLogic() {
 void checkDeadmanSwitch() {
     if (digitalRead(IN4_PIN) == HIGH) {
         if (deadmanSwitchActive) {
-#ifndef HASP_RS485_ENABLED
-            if (Serial) Serial.println("Totmannschalter UNTERBROCHEN");
-#endif
+            DBG_PRINTLN("Totmannschalter UNTERBROCHEN");
             deadmanSwitchActive = false;
             buttonMPressedFlag  = false;
             digitalWrite(RELAY_CH3_PIN, LOW);
         }
     } else {
         if (!deadmanSwitchActive && buttonMPressedFlag) {
-#ifndef HASP_RS485_ENABLED
-            if (Serial) Serial.println("Totmannschalter AKTIV");
-#endif
+            DBG_PRINTLN("Totmannschalter AKTIV");
             deadmanSwitchActive = true;
             buttonMPressedFlag  = false;
         }

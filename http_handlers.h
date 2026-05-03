@@ -565,5 +565,5 @@ void setupWebServer() {
         wsNoKeepAlive(); server.send(404, "text/plain", "404");
     });
     server.begin();
-    if (Serial) Serial.println("Webserver gestartet.");
+    DBG_PRINTLN("Webserver gestartet.");
 }

@@ -140,10 +140,8 @@ WebServer server(80);
 
 // Der neue MQTT Task für Core 0
 void mqttTaskCode(void * pvParameters) {
-#ifndef HASP_RS485_ENABLED
-  Serial.print("MQTT Task gestartet auf Core: ");
-  Serial.println(xPortGetCoreID());
-#endif
+  DBG_PRINT("MQTT Task gestartet auf Core: ");
+  DBG_PRINTLN(xPortGetCoreID());
 
   for(;;) {
     manageMqtt();
@@ -169,9 +167,7 @@ void setup() {
 
     Serial.begin(115200);
     while (!Serial && millis() < 1000);
-#ifndef HASP_RS485_ENABLED
-    Serial.println("\n--- Bollerwagen ESP32 Start ---");
-#endif
+    DBG_PRINTLN("\n--- Bollerwagen ESP32 Start ---");
 
     EEPROM.begin(EEPROM_SIZE);
     setupPins();
@@ -193,16 +189,12 @@ void setup() {
     lastSpeedCalcTime = millis();
     checkDeadmanSwitch();
 
-#ifndef HASP_RS485_ENABLED
-    if (Serial) Serial.println("Setup abgeschlossen. Warte auf Aktionen...");
-#endif
+    DBG_PRINTLN("Setup abgeschlossen. Warte auf Aktionen...");
 
   dataMutex = xSemaphoreCreateMutex();
 
   if (dataMutex != NULL) {
-#ifndef HASP_RS485_ENABLED
-    if (Serial) Serial.println("Erstelle MQTT Task auf Core 0...");
-#endif
+    DBG_PRINTLN("Erstelle MQTT Task auf Core 0...");
     xTaskCreatePinnedToCore(
       mqttTaskCode, "TaskMQTT", 10000, NULL, 1, &TaskMQTT, 0);
   }
@@ -214,23 +206,21 @@ void setup() {
 
 // ========================= Loop =========================
 
-void loop() {
-    // Diagnose und Serial-Eingabe nur, wenn USB-Serial aktiv ist.
-    // Mit HASP_RS485_ENABLED ist Serial = RS485-Bus → kein Debug-Output, keine Eingabe!
-#ifndef HASP_RS485_ENABLED
+    // Diagnose und Serial-Eingabe nur wenn USB-Serial-Debug aktiv ist.
+    // Bei RS485-HASP ist Serial = RS485-Bus → würde das Display stören; im
+    // TTL-Modus oder ganz ohne HASP ist Serial frei für USB-Konsole.
+#if USB_SERIAL_DEBUG
     // --- Diagnose alle 10s ---
     static unsigned long lastDiagMs = 0;
     if (millis() - lastDiagMs > 10000UL) {
         lastDiagMs = millis();
-        if (Serial) {
-            Serial.print("[DIAG] Heap=");    Serial.print(ESP.getFreeHeap());
-            Serial.print(" MinHeap=");       Serial.print(ESP.getMinFreeHeap());
-            Serial.print(" Stack(loop)=");   Serial.print(uxTaskGetStackHighWaterMark(NULL));
-            Serial.print(" WiFi=");          Serial.print(WiFi.status()==WL_CONNECTED?"ok":"--");
-            Serial.print(" MQTT=");          Serial.print(mqttConnected?"ok":"--");
-            Serial.print(" ReconI=");        Serial.print(mqttReconnectInterval/1000);
-            Serial.println("s");
-        }
+        DBG_PRINT("[DIAG] Heap=");    DBG_PRINT(ESP.getFreeHeap());
+        DBG_PRINT(" MinHeap=");       DBG_PRINT(ESP.getMinFreeHeap());
+        DBG_PRINT(" Stack(loop)=");   DBG_PRINT(uxTaskGetStackHighWaterMark(NULL));
+        DBG_PRINT(" WiFi=");          DBG_PRINT(WiFi.status()==WL_CONNECTED?"ok":"--");
+        DBG_PRINT(" MQTT=");          DBG_PRINT(mqttConnected?"ok":"--");
+        DBG_PRINT(" ReconI=");        DBG_PRINT(mqttReconnectInterval/1000);
+        DBG_PRINTLN("s");
     }
 
     // --- Serial-Eingabe (Sollwert direkt setzen) ---
