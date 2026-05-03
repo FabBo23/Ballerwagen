@@ -26,8 +26,9 @@
 // ========================= Konfiguration (Konstanten & Pins) =========================
 #include "config.h"
 
-// CYD-Display via UART2 (provisorisch, ohne RS485).
-// Zum Deaktivieren auskommentieren:
+// HASP-Anbindung an die CYD aktivieren. Welche Schnittstelle (RS485 über
+// BL3085 auf UART0 ODER TTL über UART1) wird in hasp_rs485.h via
+// HASP_INTERFACE festgelegt. Auskommentieren um HASP komplett zu deaktivieren.
 #define HASP_RS485_ENABLED
 
 // ========================= Globale Variablen =========================
@@ -95,14 +96,12 @@ unsigned long lastSpeedCalcTime     = 0;
 
 // --- Interrupt Flags ---
 volatile bool          buttonMPressedFlag      = false;
-volatile bool          hallSensorPulseDetected = false;
 volatile unsigned long lastButtonMTime         = 0;
 volatile unsigned long lastButtonDownTime      = 0;
 volatile unsigned long lastButtonUpTime        = 0;
 volatile unsigned long lastHornButtonTime      = 0;
 volatile unsigned long PulseTime               = 0;
 volatile unsigned long lastPulseTime           = 0;
-volatile int           pulsesInInterval        = 0;
 
 // --- Hupe ---
 unsigned long hornShortPressDurationMs    = 1000;
@@ -258,6 +257,4 @@ void loop() {
 #ifdef HASP_RS485_ENABLED
     handleHaspRS485();
 #endif
-
-    if (hallSensorPulseDetected) hallSensorPulseDetected = false;
 }

@@ -45,9 +45,8 @@ void IRAM_ATTR hornButton_ISR() {
 void IRAM_ATTR hallSensor_ISR() {
     unsigned long t = millis();
     if (t - lastPulseTime > HALL_DEBOUNCE_DELAY_MS) {
-        PulseTime              = t - lastPulseTime;
-        lastPulseTime          = t;
-        hallSensorPulseDetected = true;
+        PulseTime     = t - lastPulseTime;
+        lastPulseTime = t;
     }
 }
 
