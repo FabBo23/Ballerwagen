@@ -17,7 +17,7 @@
 #define HASP_RX_PIN      3      // IO3  → BL3085 RO
 #define HASP_TX_PIN      1      // IO1  → BL3085 DI
 #define HASP_DE_PIN     22      // IO22 → BL3085 DE + #RE
-#define HASP_BAUD   115200
+#define HASP_BAUD   19200
 
 // ========================= Schnittstellen-Auswahl =========================
 //
