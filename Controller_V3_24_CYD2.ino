@@ -26,10 +26,18 @@
 // ========================= Konfiguration (Konstanten & Pins) =========================
 #include "config.h"
 
-// HASP-Anbindung an die CYD aktivieren. Welche Schnittstelle (RS485 über
-// BL3085 auf UART0 ODER TTL über UART1) wird in hasp_rs485.h via
-// HASP_INTERFACE festgelegt. Auskommentieren um HASP komplett zu deaktivieren.
+// HASP-Anbindung an die CYD aktivieren. Welche Schnittstelle (RS485 / TTL /
+// MQTT) wird in config.h via HASP_INTERFACE festgelegt. Auskommentieren um
+// HASP komplett zu deaktivieren.
 #define HASP_RS485_ENABLED
+
+// Forward-Deklarationen damit mqtt.h die HASP-MQTT-Hooks aufrufen kann
+// (Implementation in hasp_rs485.h, das aber NACH mqtt.h includiert wird).
+#if defined(HASP_RS485_ENABLED) && HASP_INTERFACE == HASP_IF_MQTT
+  void haspHandleMqttStateMsg(const char* topic, const char* payload);
+  void haspMqttOnConnect();
+  void handleHaspMqtt();
+#endif
 
 // ========================= Globale Variablen =========================
 SemaphoreHandle_t dataMutex;

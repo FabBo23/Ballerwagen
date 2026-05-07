@@ -61,6 +61,15 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
     DBG_PRINT("MQTT ← ["); DBG_PRINT(topic); DBG_PRINT("] "); DBG_PRINTLN(msg);
 
+#if defined(HASP_RS485_ENABLED) && HASP_INTERFACE == HASP_IF_MQTT
+    // openHASP-State-Events haben das Präfix hasp/<plate>/state/...
+    // Forward-Deklaration siehe Controller_V3_24_CYD2.ino, Implementation in hasp_rs485.h.
+    if (strncmp(topic, "hasp/", 5) == 0) {
+        haspHandleMqttStateMsg(topic, msg);
+        return;
+    }
+#endif
+
     size_t baseLen = strlen(mqttTopic);
     if (strncmp(topic, mqttTopic, baseLen) != 0 || topic[baseLen] != '/') return;
     const char* suffix = topic + baseLen + 1;
@@ -204,6 +213,12 @@ void manageMqtt() {
         mqttConnected = true;
         mqttClient.loop();
         publishMqttData();
+#if defined(HASP_RS485_ENABLED) && HASP_INTERFACE == HASP_IF_MQTT
+        // HASP-Display-Updates über MQTT: läuft hier auf Core 0 statt im
+        // loop auf Core 1, damit alle MQTT-Operationen aus einem Task
+        // kommen (PubSubClient ist nicht thread-safe).
+        handleHaspMqtt();
+#endif
     }
 }
 

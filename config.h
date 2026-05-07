@@ -29,6 +29,30 @@
   #define DBG_PRINTF(...)   ((void)0)
 #endif
 
+// ========================= HASP-Schnittstellen-Auswahl =========================
+// Standardmäßig hier definiert (statt in hasp_rs485.h), damit mqtt.h die
+// Auswahl bereits beim Compilieren auswerten kann.
+//
+// HASP_IF_RS485     – UART0 (Serial) + BL3085 + externer Wandler an der CYD
+// HASP_IF_TTL_UART1 – UART1 (eigene Pins 33/21) direkt zur CYD-UART
+// HASP_IF_MQTT      – HASP-Commands werden via MQTT an die CYD geschickt;
+//                     Bollerwagen muss MQTT aktiviert haben, openHASP-CYD
+//                     hängt am gleichen Broker und nutzt das eingebaute
+//                     openHASP-MQTT-Interface (`hasp/<plate>/command` und
+//                     `hasp/<plate>/state/+`).
+#define HASP_IF_RS485      0
+#define HASP_IF_TTL_UART1  1
+#define HASP_IF_MQTT       2
+
+#ifndef HASP_INTERFACE
+  #define HASP_INTERFACE HASP_IF_MQTT
+#endif
+
+// openHASP-Plate-Name (muss zur node-Config auf der CYD passen, default plate01)
+#ifndef HASP_MQTT_PLATE
+  #define HASP_MQTT_PLATE "plate01"
+#endif
+
 // ========================= WiFi AP (Fallback-Hotspot) =========================
 #define AP_SSID     "Bollerwagen"
 #define AP_PASSWORD "password123"

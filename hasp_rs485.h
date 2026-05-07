@@ -19,28 +19,17 @@
 #define HASP_DE_PIN     22      // IO22 → BL3085 DE + #RE
 #define HASP_BAUD   9600
 
-// ========================= Schnittstellen-Auswahl =========================
+// HASP_IF_RS485 / HASP_IF_TTL_UART1 / HASP_IF_MQTT sowie HASP_INTERFACE
+// sind in config.h definiert (damit mqtt.h sie ebenfalls auswerten kann).
 //
-// HASP_IF_RS485 (Default):
-//   Sendet/Empfängt über UART0 (Serial) auf GPIO 1/3 → BL3085 auf der
-//   ES32C14 → RS485 A/B → Wandler an der CYD-Seite. Halbduplex, DE-Pin
-//   über IO22. Funktioniert nur bei sauberer Hardware-Strecke (A/B-Polung,
-//   funktionierender BL3085, Wandler stromversorgt).
-//
-// HASP_IF_TTL_UART1:
-//   TTL direkt ohne Transceiver. Eigene UART1-Instanz mit GPIO 33 (TX)
-//   und GPIO 21 (RX). Vollduplex → Display-Buttons funktionieren ohne
-//   Kollisionsrisiko. Verkabelung:
-//      ESP32 GPIO 33 (TX) ──► CYD UART RX
-//      ESP32 GPIO 21 (RX) ◄── CYD UART TX
-//      ESP32 GND          ──  CYD GND   (zwingend gemeinsam!)
-//   3 m geschirmtes Twisted Pair OK. Bei Aussetzern Baud auf 19200 senken
-//   (HASP_BAUD anpassen UND in der CYD-config.json).
-#define HASP_IF_RS485      0
-#define HASP_IF_TTL_UART1  1
-#ifndef HASP_INTERFACE
-  #define HASP_INTERFACE HASP_IF_TTL_UART1
-#endif
+// HASP_IF_RS485 – UART0 (Serial) + BL3085 + Wandler an der CYD-Seite
+//                 (Halbduplex, DE-Pin über IO22).
+// HASP_IF_TTL_UART1 – UART1 (GPIO 33 TX / 21 RX) direkt zur CYD,
+//                 vollduplex, kein Transceiver.
+// HASP_IF_MQTT  – HASP-Commands fließen via MQTT (Topic
+//                 hasp/<plate>/command), Display-Events kommen über
+//                 hasp/<plate>/state/+ zurück. Voraussetzung: MQTT
+//                 aktiviert und CYD am gleichen Broker.
 
 // Pins für TTL-Variante (laut config.h und ES32C14-„Free Port" frei)
 #define HASP_TTL_TX_PIN  33
@@ -70,10 +59,11 @@
 // ========================= Port-Auswahl =========================
 // Eine eigene UART1-Instanz nur instanziieren, wenn TTL ausgewählt ist.
 // HASP_PORT zeigt im jeweiligen Modus auf den richtigen Stream.
+// In HASP_IF_MQTT-Modus wird kein physischer Port benötigt.
 #if HASP_INTERFACE == HASP_IF_TTL_UART1
   HardwareSerial haspSerial(1);
   #define HASP_PORT haspSerial
-#else
+#elif HASP_INTERFACE == HASP_IF_RS485
   #define HASP_PORT Serial
 #endif
 
@@ -108,13 +98,27 @@ static inline void haspDE(bool tx) {
 
 // ========================= Senden =========================
 
+#if HASP_INTERFACE == HASP_IF_MQTT
+// MQTT-Topic für openHASP-Commands: hasp/<plate>/command
+static void haspMqttPublish(const char* cmd) {
+    if (!mqttConnected) return;  // ohne Broker geht nichts
+    char topic[40];
+    snprintf(topic, sizeof(topic), "hasp/%s/command", HASP_MQTT_PLATE);
+    mqttClient.publish(topic, cmd);
+}
+#endif
+
 static void sendHasp(const char* cmd) {
+#if HASP_INTERFACE == HASP_IF_MQTT
+    haspMqttPublish(cmd);
+#else
     haspDE(true);
     HASP_PORT.print(cmd);
     HASP_PORT.print("\n");
     HASP_PORT.flush();     // warten bis TX-Schieberegister leer
-#if HASP_INTERFACE == HASP_IF_RS485 && !HASP_UNIDIRECTIONAL_TX
+  #if HASP_INTERFACE == HASP_IF_RS485 && !HASP_UNIDIRECTIONAL_TX
     haspDE(false);         // RS485-Bidi: zurück in Empfangsmodus
+  #endif
 #endif
 }
 
@@ -137,6 +141,44 @@ static void haspApplyDirection(bool forward) {
     }
 }
 
+// Page/ID-basierter Dispatcher – wird sowohl aus dem seriellen Parser
+// als auch aus dem MQTT-State-Handler aufgerufen.
+static void haspDispatchEvent(int page, int id) {
+    if (page < 0 || id < 0) return;
+
+    // Page 1 (Dashboard): nur Vor/Rück
+    if (page == 1) {
+        if      (id == 20) haspApplyDirection(true);
+        else if (id == 21) haspApplyDirection(false);
+        return;
+    }
+
+    // Page 2 (Steuerung): Speed ±, STOP, Vor/Rück, Hupe
+    if (page == 2) {
+        // Vor/Rück haben eigenen Mutex in haspApplyDirection – muss VOR
+        // dem xSemaphoreTake stehen, sonst Deadlock (Mutex nicht rekursiv).
+        if (id == 20) { haspApplyDirection(true);  return; }
+        if (id == 21) { haspApplyDirection(false); return; }
+
+        if (dataMutex != NULL && xSemaphoreTake(dataMutex, pdMS_TO_TICKS(100))) {
+            if (id == 10) {
+                drehzahlSollwert = max(drehzahlSollwert - drehzahlSchrittweite, 0);
+            } else if (id == 11) {
+                drehzahlSollwert = min(drehzahlSollwert + drehzahlSchrittweite, 100);
+            } else if (id == 12) {
+                drehzahlSollwert = 0;  // STOP
+            } else if (id == 30) {
+                digitalWrite(RELAY_CH4_PIN, HIGH);
+                hornStopTime           = millis() + hornShortPressDurationMs;
+                hornButtonPhysicalHeld = false;
+            }
+            xSemaphoreGive(dataMutex);
+        }
+    }
+}
+
+// Serieller Pfad: parst eine komplette Zeile aus der CYD und dispatcht
+// das Event. Akzeptiert zwei Formate (siehe Kommentare unten).
 static void haspHandleEvent(const char* line) {
     if (!strstr(line, "\"event\":\"up\"")) return;
 
@@ -172,43 +214,34 @@ static void haspHandleEvent(const char* line) {
         }
     }
 
-    if (page < 0 || id < 0) return;
-
-    // Page 1 (Dashboard): nur Vor/Rück
-    if (page == 1) {
-        if      (id == 20) haspApplyDirection(true);
-        else if (id == 21) haspApplyDirection(false);
-        return;
-    }
-
-    // Page 2 (Steuerung): Speed ±, STOP, Vor/Rück, Hupe
-    if (page == 2) {
-        // Vor/Rück haben eigenen Mutex in haspApplyDirection – muss VOR
-        // dem xSemaphoreTake stehen, sonst Deadlock (Mutex nicht rekursiv).
-        if (id == 20) { haspApplyDirection(true);  return; }
-        if (id == 21) { haspApplyDirection(false); return; }
-
-        if (dataMutex != NULL && xSemaphoreTake(dataMutex, pdMS_TO_TICKS(100))) {
-            if (id == 10) {
-                drehzahlSollwert = max(drehzahlSollwert - drehzahlSchrittweite, 0);
-            } else if (id == 11) {
-                drehzahlSollwert = min(drehzahlSollwert + drehzahlSchrittweite, 100);
-            } else if (id == 12) {
-                // STOP – Sollwert sofort auf 0
-                drehzahlSollwert = 0;
-            } else if (id == 30) {
-                // Hupe (kurzer Druck)
-                digitalWrite(RELAY_CH4_PIN, HIGH);
-                hornStopTime           = millis() + hornShortPressDurationMs;
-                hornButtonPhysicalHeld = false;
-            }
-            xSemaphoreGive(dataMutex);
-        }
-    }
+    haspDispatchEvent(page, id);
 }
 
+#if HASP_INTERFACE == HASP_IF_MQTT
+// MQTT-Pfad: openHASP publisht Events nach hasp/<plate>/state/p<n>b<m>
+// mit Payload {"event":"up","val":1}. Topic enthält Page+ID, Payload das Event.
+// Nicht-static: wird über die Forward-Deklaration in der .ino aus
+// mqtt.h heraus aufgerufen.
+void haspHandleMqttStateMsg(const char* topic, const char* payload) {
+    if (!strstr(payload, "\"event\":\"up\"")) return;
+
+    const char* p = strstr(topic, "/state/p");
+    if (!p) return;
+    p += 8;                          // hinter "/state/p"
+    int page = atoi(p);
+    const char* b = strchr(p, 'b');
+    if (!b) return;
+    int id = atoi(b + 1);
+
+    haspDispatchEvent(page, id);
+}
+#endif
+
 static void haspReceive() {
-#if HASP_INTERFACE == HASP_IF_RS485 && HASP_UNIDIRECTIONAL_TX
+#if HASP_INTERFACE == HASP_IF_MQTT
+    // MQTT: Events kommen über mqttCallback in mqtt.h, nicht über UART
+    return;
+#elif HASP_INTERFACE == HASP_IF_RS485 && HASP_UNIDIRECTIONAL_TX
     // RS485 TX-Only: Empfänger ist abgeschaltet (#RE=HIGH → RO floating)
     return;
 #else
@@ -321,49 +354,10 @@ static void haspSendUpdate() {
 
 // ========================= Öffentliche API =========================
 
-void setupHaspRS485() {
-#if HASP_INTERFACE == HASP_IF_RS485
-    // ----- RS485 / BL3085 -----
-    pinMode(HASP_DE_PIN, OUTPUT);
-  #if HASP_UNIDIRECTIONAL_TX
-    // Ab hier permanent senden. Setup-Phase ist vorbei → keine Boot-Logs
-    // mehr; alles was jetzt rausgeht, sind echte HASP-Kommandos.
-    digitalWrite(HASP_DE_PIN, HIGH);
-  #else
-    haspDE(false);  // bidirektional: zuerst Empfangsmodus
-  #endif
-
-    Serial.begin(HASP_BAUD, SERIAL_8N1, HASP_RX_PIN, HASP_TX_PIN);
-    delay(100);
-
-  #if !HASP_UNIDIRECTIONAL_TX
-    // Weckpuls (leeres newline) im bidirektionalen Modus – stößt openHASP
-    // an, falls es nach dem Boot noch in einer komischen Lock-Phase ist.
-    haspDE(true); Serial.println(); Serial.flush(); haspDE(false); delay(50);
-  #endif
-#else
-    // ----- TTL UART1 (kein Transceiver, IMMER vollduplex) -----
-    haspSerial.begin(HASP_BAUD, SERIAL_8N1, HASP_TTL_RX_PIN, HASP_TTL_TX_PIN);
-    delay(100);
-#endif
-
-    // Logging-Level auf der CYD setzen:
-    //  - RS485 TX-Only: 0 (kein Empfang, Bus möglichst still)
-    //  - sonst (RS485-Bidi oder TTL): 3 (STATE-Events landen im Parser)
-#if HASP_INTERFACE == HASP_IF_RS485 && HASP_UNIDIRECTIONAL_TX
-    sendHasp("seriallog 0");
-#else
-    sendHasp("seriallog 3");
-#endif
-    delay(50);
-
-    char rotCmd[40];
-    snprintf(rotCmd, sizeof(rotCmd), "config {\"gui\":{\"rotation\":%d}}", HASP_ROTATION);
-    sendHasp(rotCmd);
-    delay(200);
-
-    sendHasp("page 1");
-
+// Reset der Change-Detection-Caches – wird beim Setup und nach MQTT-
+// Reconnect aufgerufen, damit die nächste Update-Runde alle Werte neu
+// schickt (Display könnte ja inzwischen weggewesen sein).
+static void haspResetUpdateCache() {
     hasp_prev_speed   = -99.0f;
     hasp_prev_soc     = -1;
     hasp_prev_rpm     = -1;
@@ -372,7 +366,106 @@ void setupHaspRS485() {
     hasp_prev_deadman = -1;
 }
 
+void setupHaspRS485() {
+#if HASP_INTERFACE == HASP_IF_RS485
+    // ----- RS485 / BL3085 -----
+    pinMode(HASP_DE_PIN, OUTPUT);
+  #if HASP_UNIDIRECTIONAL_TX
+    digitalWrite(HASP_DE_PIN, HIGH);
+  #else
+    haspDE(false);
+  #endif
+
+    Serial.begin(HASP_BAUD, SERIAL_8N1, HASP_RX_PIN, HASP_TX_PIN);
+    delay(100);
+
+  #if !HASP_UNIDIRECTIONAL_TX
+    haspDE(true); Serial.println(); Serial.flush(); haspDE(false); delay(50);
+  #endif
+
+  #if HASP_UNIDIRECTIONAL_TX
+    sendHasp("seriallog 0");
+  #else
+    sendHasp("seriallog 3");
+  #endif
+    delay(50);
+
+    char rotCmd[40];
+    snprintf(rotCmd, sizeof(rotCmd), "config {\"gui\":{\"rotation\":%d}}", HASP_ROTATION);
+    sendHasp(rotCmd);
+    delay(200);
+    sendHasp("page 1");
+
+    haspResetUpdateCache();
+
+#elif HASP_INTERFACE == HASP_IF_TTL_UART1
+    // ----- TTL UART1 (kein Transceiver, IMMER vollduplex) -----
+    haspSerial.begin(HASP_BAUD, SERIAL_8N1, HASP_TTL_RX_PIN, HASP_TTL_TX_PIN);
+    delay(100);
+    sendHasp("seriallog 3");
+    delay(50);
+    char rotCmd[40];
+    snprintf(rotCmd, sizeof(rotCmd), "config {\"gui\":{\"rotation\":%d}}", HASP_ROTATION);
+    sendHasp(rotCmd);
+    delay(200);
+    sendHasp("page 1");
+    haspResetUpdateCache();
+
+#else
+    // ----- MQTT -----
+    // Kein UART. Setup-Befehle (rotation, page 1) werden bei der ersten
+    // erfolgreichen MQTT-Verbindung aus handleHaspMqtt() heraus geschickt
+    // – an dieser Stelle ist MQTT noch nicht garantiert verbunden.
+    haspResetUpdateCache();
+#endif
+}
+
+#if HASP_INTERFACE == HASP_IF_MQTT
+// State-Flag: hat openHASP via MQTT bereits Setup-Befehle (rotation, page 1)
+// und das Subscribe gesehen? Nach Reconnect zurücksetzen, damit alles neu kommt.
+static bool hasp_mqtt_session_initialized = false;
+
+// Initial-Setup nach erstem MQTT-Connect: Topic abonnieren + openHASP-Konfig.
+// Wird aus handleHaspMqtt() bzw. nach dem MQTT-Connect aufgerufen.
+void haspMqttOnConnect() {
+    if (!mqttConnected) return;
+
+    char topic[40];
+    snprintf(topic, sizeof(topic), "hasp/%s/state/+", HASP_MQTT_PLATE);
+    mqttClient.subscribe(topic);
+
+    sendHasp("seriallog 0");        // openHASP-Console quiet (Display redet via MQTT)
+    char rotCmd[40];
+    snprintf(rotCmd, sizeof(rotCmd), "config {\"gui\":{\"rotation\":%d}}", HASP_ROTATION);
+    sendHasp(rotCmd);
+    sendHasp("page 1");
+
+    haspResetUpdateCache();
+    hasp_mqtt_session_initialized = true;
+}
+
+// Wird aus dem MQTT-Task auf Core 0 in jeder Runde aufgerufen.
+// Schickt periodisch geänderte Werte ans Display und kümmert sich um
+// Re-Init nach Reconnect.
+void handleHaspMqtt() {
+    if (!mqttConnected) {
+        // Verbindung weg → beim nächsten Connect alles neu
+        hasp_mqtt_session_initialized = false;
+        return;
+    }
+    if (!hasp_mqtt_session_initialized) {
+        haspMqttOnConnect();
+    }
+    haspSendUpdate();
+}
+#endif
+
 void handleHaspRS485() {
+#if HASP_INTERFACE == HASP_IF_MQTT
+    // MQTT-Modus: alles läuft auf Core 0 im MQTT-Task → loop hat hier nichts zu tun
+    return;
+#else
     haspReceive();
     haspSendUpdate();
+#endif
 }
