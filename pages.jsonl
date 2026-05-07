@@ -1,20 +1,28 @@
 {"page":1,"id":0,"obj":"scr","bg_color":"#0d1117"}
 {"page":1,"id":1,"obj":"label","x":0,"y":0,"w":320,"h":24,"text":"BOLLERWAGEN","text_font":16,"align":"center","text_color":"#00d4ff","bg_color":"#161b22","border_width":0}
-{"page":1,"id":2,"obj":"label","x":4,"y":28,"w":148,"h":96,"text":"0.0","text_font":48,"align":"center","text_color":"#00ff88","bg_color":"#0d2018","radius":10,"border_width":1,"border_color":"#00ff88"}
-{"page":1,"id":3,"obj":"label","x":4,"y":126,"w":148,"h":14,"text":"km/h","text_font":12,"align":"center","text_color":"#336644","bg_color":"#0d1117","border_width":0}
-{"page":1,"id":4,"obj":"label","x":158,"y":30,"w":50,"h":13,"text":"AKKU","text_font":12,"align":"left","text_color":"#556677","bg_color":"#0d1117","border_width":0}
-{"page":1,"id":5,"obj":"bar","x":158,"y":45,"w":116,"h":14,"min":0,"max":100,"val":75,"bg_color":"#1a2233","indicator_color":"#00d4ff","border_color":"#243048","border_width":1,"radius":4}
-{"page":1,"id":6,"obj":"label","x":278,"y":43,"w":38,"h":18,"text":"75%","text_font":12,"align":"right","text_color":"#00d4ff","bg_color":"#0d1117","border_width":0}
-{"page":1,"id":7,"obj":"label","x":158,"y":64,"w":70,"h":13,"text":"DREHZAHL","text_font":12,"align":"left","text_color":"#556677","bg_color":"#0d1117","border_width":0}
-{"page":1,"id":8,"obj":"bar","x":158,"y":79,"w":116,"h":14,"min":0,"max":100,"val":0,"bg_color":"#1a2233","indicator_color":"#ff8800","border_color":"#243048","border_width":1,"radius":4}
-{"page":1,"id":9,"obj":"label","x":278,"y":77,"w":38,"h":18,"text":"0%","text_font":12,"align":"right","text_color":"#ff8800","bg_color":"#0d1117","border_width":0}
-{"page":1,"id":10,"obj":"label","x":158,"y":98,"w":50,"h":13,"text":"STROM","text_font":12,"align":"left","text_color":"#556677","bg_color":"#0d1117","border_width":0}
-{"page":1,"id":11,"obj":"label","x":158,"y":113,"w":158,"h":26,"text":"0.00 A","text_font":16,"align":"right","text_color":"#ff4455","bg_color":"#0d1117","border_width":0}
-{"page":1,"id":20,"obj":"btn","x":4,"y":148,"w":106,"h":38,"text":"VORWAERTS","text_font":14,"align":"center","bg_color":"#003d1a","text_color":"#00ff88","border_color":"#00ff88","border_width":2,"radius":8}
-{"page":1,"id":21,"obj":"btn","x":114,"y":148,"w":106,"h":38,"text":"RUECKWAERTS","text_font":14,"align":"center","bg_color":"#161b22","text_color":"#33333a","border_color":"#252530","border_width":2,"radius":8}
-{"page":1,"id":12,"obj":"label","x":224,"y":148,"w":92,"h":38,"text":"TOTMANN!","text_font":12,"align":"center","text_color":"#ffffff","bg_color":"#6b0000","radius":8,"border_width":0}
-{"page":1,"id":30,"obj":"btn","x":4,"y":194,"w":106,"h":26,"text":"STEUERN","text_font":12,"align":"center","bg_color":"#161b22","text_color":"#aaaaaa","border_color":"#30363d","border_width":1,"radius":6,"action":"p2"}
-{"page":1,"id":31,"obj":"btn","x":114,"y":194,"w":106,"h":26,"text":"DATEN","text_font":12,"align":"center","bg_color":"#161b22","text_color":"#aaaaaa","border_color":"#30363d","border_width":1,"radius":6,"action":"p3"}
+
+{"page":1,"id":50,"obj":"arc","x":10,"y":28,"w":130,"h":130,"min":0,"max":100,"val":0,"type":0,"bg_opa":0,"border_width":0,"line_width":8,"line_color":"#243048"}
+{"page":1,"id":2,"obj":"label","x":10,"y":63,"w":130,"h":36,"text":"0.0","text_font":32,"align":"center","text_color":"#00ff88","bg_opa":0,"border_width":0}
+{"page":1,"id":3,"obj":"label","x":10,"y":103,"w":130,"h":16,"text":"km/h","text_font":12,"align":"center","text_color":"#336644","bg_opa":0,"border_width":0}
+
+{"page":1,"id":12,"obj":"label","x":10,"y":79,"w":130,"h":28,"text":"TOTMANN!","text_font":16,"align":"center","text_color":"#ffffff","bg_color":"#cc0000","bg_opa":220,"radius":4,"border_width":1,"border_color":"#ff4444"}
+
+{"page":1,"id":4,"obj":"label","x":155,"y":28,"w":40,"h":14,"text":"AKKU","text_font":12,"align":"left","text_color":"#556677","bg_opa":0,"border_width":0}
+{"page":1,"id":6,"obj":"label","x":195,"y":28,"w":45,"h":14,"text":"75%","text_font":12,"align":"right","text_color":"#00d4ff","bg_opa":0,"border_width":0}
+{"page":1,"id":5,"obj":"bar","x":155,"y":45,"w":85,"h":10,"min":0,"max":100,"val":75,"bg_color":"#1a2233","indicator_color":"#00d4ff","border_width":0,"radius":5}
+
+{"page":1,"id":10,"obj":"label","x":250,"y":28,"w":60,"h":14,"text":"STROM","text_font":12,"align":"right","text_color":"#556677","bg_opa":0,"border_width":0}
+{"page":1,"id":11,"obj":"label","x":250,"y":42,"w":60,"h":20,"text":"0.00 A","text_font":16,"align":"right","text_color":"#ff4455","bg_opa":0,"border_width":0}
+
+{"page":1,"id":20,"obj":"btn","x":155,"y":72,"w":155,"h":36,"text":"▲ VORWAERTS","text_font":12,"align":"center","bg_color":"#003d1a","text_color":"#00ff88","border_color":"#00ff88","border_width":2,"radius":8}
+{"page":1,"id":21,"obj":"btn","x":155,"y":116,"w":155,"h":36,"text":"▼ RUECKWAERTS","text_font":12,"align":"center","bg_color":"#161b22","text_color":"#33333a","border_color":"#252530","border_width":2,"radius":8}
+
+{"page":1,"id":7,"obj":"label","x":10,"y":166,"w":100,"h":16,"text":"DREHZAHL","text_font":12,"align":"left","text_color":"#556677","bg_opa":0,"border_width":0}
+{"page":1,"id":9,"obj":"label","x":240,"y":156,"w":70,"h":26,"text":"0%","text_font":24,"align":"right","text_color":"#ff8800","bg_opa":0,"border_width":0}
+{"page":1,"id":8,"obj":"bar","x":10,"y":186,"w":300,"h":12,"min":0,"max":100,"val":0,"bg_color":"#1a2233","indicator_color":"#ff8800","border_width":0,"radius":6}
+
+{"page":1,"id":30,"obj":"btn","x":5,"y":208,"w":150,"h":28,"text":"STEUERN","text_font":12,"align":"center","bg_color":"#161b22","text_color":"#aaaaaa","border_color":"#30363d","border_width":1,"radius":6,"action":"p2"}
+{"page":1,"id":31,"obj":"btn","x":165,"y":208,"w":150,"h":28,"text":"DATEN","text_font":12,"align":"center","bg_color":"#161b22","text_color":"#aaaaaa","border_color":"#30363d","border_width":1,"radius":6,"action":"p3"}
 {"page":2,"id":0,"obj":"scr","bg_color":"#0d1117"}
 {"page":2,"id":1,"obj":"label","x":0,"y":0,"w":320,"h":24,"text":"STEUERUNG","text_font":16,"align":"center","text_color":"#ff8800","bg_color":"#161b22","border_width":0}
 {"page":2,"id":10,"obj":"btn","x":4,"y":28,"w":76,"h":50,"text":"-","text_font":32,"align":"center","bg_color":"#2a0e00","text_color":"#ff8800","border_color":"#ff8800","border_width":2,"radius":8}
