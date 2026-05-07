@@ -172,9 +172,9 @@ void setup() {
     digitalWrite(HASP_DE_PIN, LOW);
 #endif
 
-    Serial.begin(115200);
-    while (!Serial && millis() < 1000);
-    DBG_PRINTLN("\n--- Bollerwagen ESP32 Start ---");
+    //Serial.begin(115200);
+    //while (!Serial && millis() < 1000);
+    //DBG_PRINTLN("\n--- Bollerwagen ESP32 Start ---");
 
     EEPROM.begin(EEPROM_SIZE);
     setupPins();
@@ -183,6 +183,8 @@ void setup() {
     // setupTempSensor();  // auskommentiert bis Sensor verbaut ist
     loadConfigFromEEPROM();
     setupLittleFS();
+    delay(10000);
+  
     setupWifi();
     setupWebServer();
     setupMqtt();
