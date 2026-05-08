@@ -57,6 +57,14 @@
 #define AP_SSID     "Bollerwagen"
 #define AP_PASSWORD "password123"
 
+// ========================= mDNS =========================
+// Hostname für mDNS (Multicast DNS). Im Heimnetz erreichbar als
+// "<MDNS_HOSTNAME>.local" – funktioniert auf macOS, Linux und neueren
+// Windows-Versionen out of the box. Nur im STA-Modus aktiv.
+#ifndef MDNS_HOSTNAME
+  #define MDNS_HOSTNAME "bollerwagen"
+#endif
+
 // ========================= MQTT Timing =========================
 #define MQTT_PUBLISH_INTERVAL_MS    3000UL  // 10s – schont den WiFi-Stack
 #define MQTT_RECONNECT_INTERVAL_MS  5000UL  // Start-Intervall, wächst exponentiell

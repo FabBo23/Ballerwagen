@@ -22,6 +22,7 @@
 #include <LittleFS.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include <ESPmDNS.h>
 
 // ========================= Konfiguration (Konstanten & Pins) =========================
 #include "config.h"

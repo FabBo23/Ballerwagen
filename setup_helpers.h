@@ -62,6 +62,14 @@ void setupWifi() {
             // Zur Sicherheit nochmal AP explizit ausschalten
             WiFi.mode(WIFI_STA);
             WiFi.softAPdisconnect(true);
+
+            // mDNS: bollerwagen.local im Heimnetz
+            if (MDNS.begin(MDNS_HOSTNAME)) {
+                MDNS.addService("http", "tcp", 80);
+                DBG_PRINT("mDNS: "); DBG_PRINT(MDNS_HOSTNAME); DBG_PRINTLN(".local");
+            } else {
+                DBG_PRINTLN("mDNS-Start fehlgeschlagen.");
+            }
         } else {
             wifiSTAConnected = false;
             DBG_PRINTLN("\nVerbindung fehlgeschlagen. Starte Access Point (Fallback).");
