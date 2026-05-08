@@ -36,6 +36,7 @@
 // (Implementation in hasp_rs485.h, das aber NACH mqtt.h includiert wird).
 #if defined(HASP_RS485_ENABLED) && HASP_INTERFACE == HASP_IF_MQTT
   void haspHandleMqttStateMsg(const char* topic, const char* payload);
+  void haspMqttHandleLwt(const char* payload);
   void haspMqttOnConnect();
   void handleHaspMqtt();
 #endif

@@ -62,10 +62,14 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     DBG_PRINT("MQTT ← ["); DBG_PRINT(topic); DBG_PRINT("] "); DBG_PRINTLN(msg);
 
 #if defined(HASP_RS485_ENABLED) && HASP_INTERFACE == HASP_IF_MQTT
-    // openHASP-State-Events haben das Präfix hasp/<plate>/state/...
-    // Forward-Deklaration siehe Controller_V3_24_CYD2.ino, Implementation in hasp_rs485.h.
+    // openHASP-Topics: hasp/<plate>/state/<obj>  ODER  hasp/<plate>/LWT
+    // Forward-Deklarationen siehe Controller_V3_24_CYD2.ino, Implementation in hasp_rs485.h.
     if (strncmp(topic, "hasp/", 5) == 0) {
-        haspHandleMqttStateMsg(topic, msg);
+        if (strstr(topic, "/LWT")) {
+            haspMqttHandleLwt(msg);
+        } else if (strstr(topic, "/state/")) {
+            haspHandleMqttStateMsg(topic, msg);
+        }
         return;
     }
 #endif
@@ -231,7 +235,7 @@ void setupMqtt() {
     setupMqttClient();
     mqttClient.setServer(mqttBroker, mqttPort);
     mqttClient.setCallback(mqttCallback);
-    mqttClient.setKeepAlive(60);
+    mqttClient.setKeepAlive(30);   // 30s → phantom-Connections werden in ~45s entdeckt
     mqttClient.setBufferSize(512);
     DBG_PRINT("MQTT: Broker="); DBG_PRINT(mqttBroker);
     DBG_PRINT(":"); DBG_PRINT(mqttPort);

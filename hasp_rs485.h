@@ -423,16 +423,30 @@ void setupHaspRS485() {
 #if HASP_INTERFACE == HASP_IF_MQTT
 // State-Flag: hat openHASP via MQTT bereits Setup-Befehle (rotation, page 1)
 // und das Subscribe gesehen? Nach Reconnect zurücksetzen, damit alles neu kommt.
-static bool hasp_mqtt_session_initialized = false;
+static bool          hasp_mqtt_session_initialized = false;
+static unsigned long hasp_mqtt_last_resubscribe    = 0;
 
-// Initial-Setup nach erstem MQTT-Connect: Topic abonnieren + openHASP-Konfig.
+// Alle 5 Minuten den Subscribe wiederholen – heilt selbständig wenn der
+// Broker unsere Subscription verloren hat (kann bei Mosquitto-Restart oder
+// Phantom-TCP-Connections passieren). Idempotent, der Broker frischt nur auf.
+#define HASP_MQTT_RESUBSCRIBE_INTERVAL_MS  (5UL * 60UL * 1000UL)
+
+// Topic-Subscriptions für openHASP-Events + LWT
+static void haspMqttSubscribe() {
+    if (!mqttConnected) return;
+    char topic[40];
+    snprintf(topic, sizeof(topic), "hasp/%s/state/+", HASP_MQTT_PLATE);
+    mqttClient.subscribe(topic);
+    snprintf(topic, sizeof(topic), "hasp/%s/LWT", HASP_MQTT_PLATE);
+    mqttClient.subscribe(topic);
+}
+
+// Initial-Setup nach erstem MQTT-Connect: Topics abonnieren + openHASP-Konfig.
 // Wird aus handleHaspMqtt() bzw. nach dem MQTT-Connect aufgerufen.
 void haspMqttOnConnect() {
     if (!mqttConnected) return;
 
-    char topic[40];
-    snprintf(topic, sizeof(topic), "hasp/%s/state/+", HASP_MQTT_PLATE);
-    mqttClient.subscribe(topic);
+    haspMqttSubscribe();
 
     sendHasp("seriallog 0");        // openHASP-Console quiet (Display redet via MQTT)
     char rotCmd[40];
@@ -442,11 +456,22 @@ void haspMqttOnConnect() {
 
     haspResetUpdateCache();
     hasp_mqtt_session_initialized = true;
+    hasp_mqtt_last_resubscribe    = millis();
+}
+
+// LWT-Callback aus mqttCallback: openHASP meldet sich neu ("online") oder ab
+// ("offline"). Bei online: Cache zurücksetzen damit das Display alle Werte
+// frisch bekommt – sonst denken die Change-Detection-Statics "schon gesendet"
+// und der Display-Bildschirm bleibt nach dem CYD-Reboot leer/default.
+void haspMqttHandleLwt(const char* payload) {
+    if (strcmp(payload, "online") == 0) {
+        haspResetUpdateCache();
+    }
 }
 
 // Wird aus dem MQTT-Task auf Core 0 in jeder Runde aufgerufen.
 // Schickt periodisch geänderte Werte ans Display und kümmert sich um
-// Re-Init nach Reconnect.
+// Re-Init nach Reconnect plus Resubscribe als Heartbeat.
 void handleHaspMqtt() {
     if (!mqttConnected) {
         // Verbindung weg → beim nächsten Connect alles neu
@@ -455,6 +480,11 @@ void handleHaspMqtt() {
     }
     if (!hasp_mqtt_session_initialized) {
         haspMqttOnConnect();
+    }
+    // Heartbeat-Resubscribe gegen stille Subscription-Verluste
+    if (millis() - hasp_mqtt_last_resubscribe > HASP_MQTT_RESUBSCRIBE_INTERVAL_MS) {
+        haspMqttSubscribe();
+        hasp_mqtt_last_resubscribe = millis();
     }
     haspSendUpdate();
 }
