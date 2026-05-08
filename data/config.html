@@ -29,6 +29,8 @@
         .btn-secondary:hover { background-color: #5a6268; }
         .btn-wifi { background-color: #6f42c1; color: white; }
         .btn-wifi:hover { background-color: #5a32a3; }
+        .btn-danger { background-color: var(--danger-color); color: white; }
+        .btn-danger:hover { background-color: #b02a37; }
         #status-msg { margin-top: 10px; font-weight: bold; min-height: 1.4em; }
         .loading { color: var(--text-muted); font-style: italic; }
         a { color: var(--primary-color); }
@@ -64,6 +66,14 @@
         <button class="btn btn-success" onclick="saveConfig()">💾 Speichern</button>
         <a href="/"     class="btn btn-secondary">← Zurück</a>
         <a href="/wifi" class="btn btn-wifi">📶 WLAN-Einstellungen</a>
+    </div>
+
+    <div class="card">
+        <p style="margin-top:0;color:var(--text-muted);font-size:0.9em">
+            Bei Hängern oder nach Konfigurationswechseln kann der ESP32 hier neu gestartet werden.
+        </p>
+        <button class="btn btn-danger" onclick="reboot()">🔄 ESP32 neu starten</button>
+        <div id="reboot-msg" style="margin-top:10px;font-weight:bold;min-height:1.4em"></div>
     </div>
 </div>
 <p style="text-align:center;font-size:0.8em;color:#999;margin-top:5px">Firmware <span id="fw-ver">v?</span></p>
@@ -113,6 +123,25 @@
             .catch(e => {
                 document.getElementById('status-msg').style.color = '#dc3545';
                 document.getElementById('status-msg').textContent = 'Netzwerkfehler: ' + e;
+            });
+    }
+
+    function reboot() {
+        if (!confirm('ESP32 wirklich neu starten? Web-UI ist für ~10 Sekunden nicht erreichbar.')) return;
+        const msg = document.getElementById('reboot-msg');
+        msg.style.color = '#6c757d';
+        msg.textContent = 'Sende Reboot-Befehl...';
+        fetch('/reboot', { method: 'POST' })
+            .then(r => r.text())
+            .then(() => {
+                msg.style.color = '#28a745';
+                msg.textContent = '✓ Neustart läuft. Seite lädt in 10 s neu...';
+                setTimeout(() => location.reload(), 10000);
+            })
+            .catch(() => {
+                msg.style.color = '#28a745';
+                msg.textContent = '✓ Neustart läuft. Seite lädt in 10 s neu...';
+                setTimeout(() => location.reload(), 10000);
             });
     }
 </script>

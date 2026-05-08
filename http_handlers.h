@@ -288,6 +288,15 @@ void handleSaveMqttConfig() {
     wsNoKeepAlive(); server.send(200, "text/plain", "OK");
 }
 
+// ========================= Reboot =========================
+
+void handleReboot() {
+    wsNoKeepAlive();
+    server.send(200, "text/plain", "Neustart in 1s...");
+    delay(1000);
+    ESP.restart();
+}
+
 // ========================= OTA Update =========================
 
 void handleOtaPage() { serveFile("/ota.html", "text/html"); }
@@ -561,6 +570,7 @@ void setupWebServer() {
     server.on("/mqtt",            HTTP_GET,  handleMqttConfig);
     server.on("/get_mqtt_status", HTTP_GET,  handleGetMqttStatus);
     server.on("/save_mqtt",       HTTP_POST, handleSaveMqttConfig);
+    server.on("/reboot",          HTTP_POST, handleReboot);
     server.onNotFound([&]() {
         wsNoKeepAlive(); server.send(404, "text/plain", "404");
     });

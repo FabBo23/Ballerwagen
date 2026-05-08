@@ -204,7 +204,9 @@ void manageMqtt() {
             snprintf(t, sizeof(t), "%s/cmd/horn",      mqttTopic); mqttClient.subscribe(t);
             snprintf(t, sizeof(t), "%s/status",        mqttTopic); mqttClient.publish(t, "online", true);
         } else {
-            if (mqttReconnectInterval < 60000UL) mqttReconnectInterval *= 2;
+            // Exponentielles Backoff: 5s → 10s → 20s → 30s (cap)
+            mqttReconnectInterval *= 2;
+            if (mqttReconnectInterval > 30000UL) mqttReconnectInterval = 30000UL;
             DBG_PRINT("MQTT: Fehler rc="); DBG_PRINT(mqttClient.state());
             DBG_PRINT(", nächster Versuch in ");
             DBG_PRINT(mqttReconnectInterval/1000); DBG_PRINTLN("s");
