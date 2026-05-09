@@ -341,14 +341,14 @@ static void haspSendUpdate() {
     if (dm_now != hasp_prev_deadman) {
         hasp_prev_deadman = dm_now;
         if (deadman_s) {
-            // Aktiv → "TOTMANN OK" grün anzeigen
-            sendHasp("p1b12.hidden=0");
-            sendHasp("p1b12.text=TOTMANN OK");
-            sendHasp("p1b12.bg_color=#004d1a");
-            sendHasp("p1b12.text_color=#00ff88");
-        } else {
-            // Inaktiv → komplett ausblenden, damit der Tacho dahinter frei ist
+            // Schalter gehalten → alles gut, Warning ausblenden, Tacho frei
             sendHasp("p1b12.hidden=1");
+        } else {
+            // Schalter losgelassen → rotes "TOTMANN!" überlagert den Tacho
+            sendHasp("p1b12.hidden=0");
+            sendHasp("p1b12.text=TOTMANN!");
+            sendHasp("p1b12.bg_color=#6b0000");
+            sendHasp("p1b12.text_color=#ffffff");
         }
     }
 }
