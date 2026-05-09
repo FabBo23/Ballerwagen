@@ -2,7 +2,7 @@
 
 // ========================= Firmware-Version =========================
 // Bitte bei jeder Veröffentlichung erhöhen und einen Git-Tag (z.B. v1.0.1) erstellen.
-#define FIRMWARE_VERSION "1.0.14"
+#define FIRMWARE_VERSION "1.0.15"
 
 // ========================= USB-Serial Debug =========================
 // 0 (Default): keine Debug-Ausgaben über USB-Serial. Saubere Konsole, kein
