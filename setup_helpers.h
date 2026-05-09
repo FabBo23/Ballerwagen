@@ -97,14 +97,33 @@ void setupVeDirect() {
     DBG_PRINTLN(veDirectSerial ? "VE.Direct (Serial2) gestartet." : "FEHLER: VE.Direct!");
 }
 
+// Initialisiert den OneWire-Bus und – falls per Web-UI aktiviert – die
+// einzelnen Sensor-Adressen. WICHTIG: setWaitForConversion(false) macht
+// requestTemperatures() asynchron, sonst blockiert es ~190 ms im Loop.
 void setupTempSensor() {
+    if (!tempSensor1Enabled && !tempSensor2Enabled) return;
+
     sensors.begin();
-    // Adresse muss vor setResolution() geholt werden – sonst zeigt
-    // sensorDeviceAddress auf uninitialisierten Speicher.
-    if (sensors.getAddress(sensorDeviceAddress, 0)) {
-        sensors.setResolution(sensorDeviceAddress, 10);
-    } else {
-        DBG_PRINTLN("WARN: Kein DS18B20 am OneWire-Bus gefunden.");
+    sensors.setWaitForConversion(false);   // KRITISCH: non-blocking-Modus
+
+    int found = sensors.getDeviceCount();
+    DBG_PRINT("DS18B20 am Bus: "); DBG_PRINTLN(found);
+
+    if (tempSensor1Enabled) {
+        if (sensors.getAddress(tempAddr1, 0)) {
+            sensors.setResolution(tempAddr1, 10);   // 10-bit ≈ 188 ms Conversion
+            tempSensor1Present = true;
+        } else {
+            DBG_PRINTLN("WARN: Sensor 1 aktiviert, aber nicht gefunden.");
+        }
+    }
+    if (tempSensor2Enabled) {
+        if (sensors.getAddress(tempAddr2, 1)) {
+            sensors.setResolution(tempAddr2, 10);
+            tempSensor2Present = true;
+        } else {
+            DBG_PRINTLN("WARN: Sensor 2 aktiviert, aber nicht gefunden.");
+        }
     }
 }
 
@@ -135,6 +154,15 @@ void loadConfigFromEEPROM() {
     loadULong(EEPROM_HORN_SHORT_DURATION_ADDR, hornShortPressDurationMs,   1000);
     loadULong(EEPROM_HORN_MAX_DURATION_ADDR,   hornMaxPressDurationMs,     4000);
     loadULong(EEPROM_M_BUTTON_LONG_PRESS_ADDR, mButtonLongPressDurationMs, 2000);
+
+    // Temperatursensor-Toggles (1 Byte je Sensor: 0 = aus, 1 = an, 0xFF = unset → default off)
+    auto loadBool = [&](int addr, bool& var, bool def) {
+        uint8_t v = EEPROM.read(addr);
+        if (v == 0xFF) { EEPROM.write(addr, def ? 1 : 0); var = def; dirty = true; }
+        else var = (v != 0);
+    };
+    loadBool(EEPROM_TEMP_SENSOR1_ENABLED_ADDR, tempSensor1Enabled, false);
+    loadBool(EEPROM_TEMP_SENSOR2_ENABLED_ADDR, tempSensor2Enabled, false);
 
     // Constraints
     drehzahlSchrittweite     = constrain(drehzahlSchrittweite, 1, 20);

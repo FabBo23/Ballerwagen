@@ -115,8 +115,8 @@ void publishMqttData() {
     if (millis() - lastMqttPublishMs < MQTT_PUBLISH_INTERVAL_MS) return;
     lastMqttPublishMs = millis();
 
-    char topic[80], json[320];
-    char spd[8], soc[8], spann[8], strom[8], leist[8], temp[8], ener[8];
+    char topic[80], json[384];
+    char spd[8], soc[8], spann[8], strom[8], leist[8], temp1[8], temp2[8], ener[8];
     int  soll_snap, ist_snap;
     bool dirF_snap, deadman_snap;
 
@@ -128,7 +128,8 @@ void publishMqttData() {
         dtostrf(ve_spannung_V,   1, 2, spann);
         dtostrf(ve_strom_A,      1, 2, strom);
         dtostrf(ve_leistung_W,   1, 1, leist);
-        dtostrf(tempC,           1, 1, temp);
+        dtostrf(tempC1,          1, 1, temp1);
+        dtostrf(tempC2,          1, 1, temp2);
         dtostrf(ve_energie_Wh,   1, 1, ener);
         soll_snap    = drehzahlSollwert;
         ist_snap     = drehzahlIstwert;
@@ -139,13 +140,15 @@ void publishMqttData() {
         return;
     }
 
+    // "temperature" bleibt als Sensor 1 erhalten (Backward-Compat zur HA-Config),
+    // "temperature2" ist neu für den zweiten Sensor.
     snprintf(json, sizeof(json),
         "{\"speed\":%s,\"rpm_soll\":%d,\"rpm_ist\":%d,\"direction\":\"%s\","
-        "\"deadman\":%s,\"temperature\":%s,\"soc\":%s,\"voltage\":%s,"
+        "\"deadman\":%s,\"temperature\":%s,\"temperature2\":%s,\"soc\":%s,\"voltage\":%s,"
         "\"current\":%s,\"power\":%s,\"energy_wh\":%s}",
         spd, soll_snap, ist_snap, dirF_snap ? "F" : "R",
         deadman_snap ? "true" : "false",
-        temp, soc, spann, strom, leist, ener
+        temp1, temp2, soc, spann, strom, leist, ener
     );
 
     snprintf(topic, sizeof(topic), "%s/state", mqttTopic);

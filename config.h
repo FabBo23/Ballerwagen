@@ -109,6 +109,8 @@
 #define EEPROM_MQTT_PASS_ADDR               237   // 33 Bytes
 #define EEPROM_MQTT_TOPIC_ADDR              270   // 33 Bytes
 // Adresse 303 war früher TLS-Flag – wird nicht mehr genutzt, bleibt aber reserviert
+#define EEPROM_TEMP_SENSOR1_ENABLED_ADDR    304   //  1 Byte
+#define EEPROM_TEMP_SENSOR2_ENABLED_ADDR    305   //  1 Byte
 
 // ========================= Motor / DAC =========================
 #define DAC_MIN_OUTPUT  32
@@ -120,3 +122,5 @@
 #define HORN_BUTTON_DEBOUNCE_MS   50UL
 #define SPEED_CALC_INTERVAL_MS  2500UL
 #define TEMP_CHECK_INTERVAL_MS  8000UL
+// DS18B20 Conversion-Zeit @ 10-bit: 187,5 ms; +slack damit der erste read garantiert fertig ist
+#define TEMP_CONVERSION_WAIT_MS  220UL

@@ -82,12 +82,20 @@ float ve_leistung_W  = 0.0f;
 float ve_soc_pct     = 0.0f;
 float ve_energie_Wh  = 0.0f;
 
-// --- Temperatursensor ---
-OneWire          oneWire(ONE_WIRE_BUS);
+// --- Temperatursensoren (DS18B20, OneWire, bis zu 2 Stück) ---
+// Per Web-UI ein-/ausschaltbar (in EEPROM persistent). Falls aktiviert
+// aber Sensor nicht erkannt: tempSensorXPresent bleibt false → getTemp
+// fragt den Sensor nicht mehr ab, der Wert bleibt 0.
+OneWire           oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
-DeviceAddress    sensorDeviceAddress;
-float            tempC                   = 0.0f;
-unsigned long    previousTempCheckMillis = 0;
+DeviceAddress     tempAddr1, tempAddr2;
+bool              tempSensor1Enabled = false;
+bool              tempSensor2Enabled = false;
+bool              tempSensor1Present = false;
+bool              tempSensor2Present = false;
+float             tempC1                  = 0.0f;
+float             tempC2                  = 0.0f;
+unsigned long     previousTempCheckMillis = 0;
 
 // --- Motorsteuerung ---
 bool          drehrichtungF        = true;
@@ -182,8 +190,9 @@ void setup() {
     setupPins();
     setupInterrupts();
     setupVeDirect();
-    // setupTempSensor();  // auskommentiert bis Sensor verbaut ist
-    loadConfigFromEEPROM();
+    loadConfigFromEEPROM();    // muss VOR setupTempSensor laufen, damit
+                               // tempSensor1/2Enabled aus EEPROM bekannt sind.
+    setupTempSensor();
     setupLittleFS();
     setupWifi();
     setupWebServer();
@@ -258,7 +267,7 @@ void loop() {
     manageMButton();
     checkDeadmanSwitch();
     parseVeDirectData();
-    // getTemp();  // auskommentiert bis Sensor verbaut ist
+    getTemp();   // non-blocking State-Machine, returnt sofort wenn nichts zu tun ist
     sanftAnlauf();
     calculateAndUpdateSpeed();
     manageHornLogic();
