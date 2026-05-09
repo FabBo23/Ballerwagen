@@ -31,6 +31,13 @@
         .btn-wifi:hover { background-color: #5a32a3; }
         .btn-danger { background-color: var(--danger-color); color: white; }
         .btn-danger:hover { background-color: #b02a37; }
+        .toggle-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid #eee; }
+        .toggle-row:last-of-type { border-bottom:none; }
+        .toggle-label { font-weight:bold; }
+        .toggle-hint  { font-size:0.85em; color:var(--text-muted); }
+        .toggle-status { font-size:0.8em; padding:2px 8px; border-radius:6px; margin-left:8px; }
+        .toggle-ok    { background:#d4edda; color:#155724; }
+        .toggle-warn  { background:#fff3cd; color:#856404; }
         #status-msg { margin-top: 10px; font-weight: bold; min-height: 1.4em; }
         .loading { color: var(--text-muted); font-style: italic; }
         a { color: var(--primary-color); }
@@ -69,6 +76,31 @@
     </div>
 
     <div class="card">
+        <h2 style="color:var(--primary-color);margin-top:0">Temperatursensoren (DS18B20)</h2>
+        <p style="margin-top:0;color:var(--text-muted);font-size:0.9em">
+            Bis zu zwei DS18B20 am gleichen OneWire-Bus (GPIO 4). Aktivierungen
+            werden erst nach <strong>Speichern + Neustart</strong> wirksam.
+            „Erkannt" zeigt, ob der Sensor beim letzten Boot gefunden wurde.
+        </p>
+        <div class="toggle-row">
+            <div>
+                <span class="toggle-label">Sensor 1</span>
+                <span id="temp1-status" class="toggle-status toggle-warn" style="display:none">?</span>
+                <div class="toggle-hint">erste DS18B20-Adresse am Bus</div>
+            </div>
+            <input type="checkbox" id="tempSensor1" style="transform:scale(1.4)">
+        </div>
+        <div class="toggle-row">
+            <div>
+                <span class="toggle-label">Sensor 2</span>
+                <span id="temp2-status" class="toggle-status toggle-warn" style="display:none">?</span>
+                <div class="toggle-hint">zweite DS18B20-Adresse am Bus</div>
+            </div>
+            <input type="checkbox" id="tempSensor2" style="transform:scale(1.4)">
+        </div>
+    </div>
+
+    <div class="card">
         <p style="margin-top:0;color:var(--text-muted);font-size:0.9em">
             Bei Hängern oder nach Konfigurationswechseln kann der ESP32 hier neu gestartet werden.
         </p>
@@ -90,11 +122,24 @@
             document.getElementById('hornshort').value          = d.hornshort;
             document.getElementById('hornmax').value            = d.hornmax;
             document.getElementById('mbuttonlongpress').value   = d.mbuttonlong;
+            document.getElementById('tempSensor1').checked      = !!d.temp1;
+            document.getElementById('tempSensor2').checked      = !!d.temp2;
+            renderSensorStatus('temp1-status', d.temp1, d.temp1present);
+            renderSensorStatus('temp2-status', d.temp2, d.temp2present);
             document.getElementById('status-msg').textContent   = '';
         })
         .catch(e => {
             document.getElementById('status-msg').textContent = 'Fehler beim Laden der Konfiguration: ' + e;
         });
+
+    function renderSensorStatus(id, enabled, present) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (!enabled) { el.style.display = 'none'; return; }
+        el.style.display = 'inline-block';
+        if (present) { el.textContent = '✓ erkannt'; el.className = 'toggle-status toggle-ok'; }
+        else         { el.textContent = '⚠ nicht gefunden'; el.className = 'toggle-status toggle-warn'; }
+    }
 
     fetch('/version').then(r=>r.text()).then(v=>{ const el=document.getElementById('fw-ver'); if(el) el.textContent='v'+v; });
 
@@ -106,7 +151,9 @@
             pulsesperrevolution:document.getElementById('pulsesperrevolution').value,
             hornshort:          document.getElementById('hornshort').value,
             hornmax:            document.getElementById('hornmax').value,
-            mbuttonlongpress:   document.getElementById('mbuttonlongpress').value
+            mbuttonlongpress:   document.getElementById('mbuttonlongpress').value,
+            tempSensor1:        document.getElementById('tempSensor1').checked ? '1' : '0',
+            tempSensor2:        document.getElementById('tempSensor2').checked ? '1' : '0'
         });
 
         fetch('/save_config', { method: 'POST', body })

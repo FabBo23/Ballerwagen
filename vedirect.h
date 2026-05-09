@@ -39,15 +39,47 @@ void parseVeDirectData() {
     }
 }
 
-// ========================= Temperatursensor =========================
+// ========================= Temperatursensoren (non-blocking) =========================
+//
+// Zwei-Phasen-Ablauf in jedem Loop-Durchlauf, NIE blockierend:
+//
+//   Phase IDLE       – wartet bis TEMP_CHECK_INTERVAL_MS abgelaufen ist
+//                      und stößt dann eine Konversion an (requestTemperatures()
+//                      ist im setWaitForConversion(false)-Modus non-blocking,
+//                      sendet nur "Convert T" auf den Bus und kehrt sofort zurück).
+//   Phase CONVERTING – wartet bis TEMP_CONVERSION_WAIT_MS (≈ 220 ms) seit
+//                      Konvertierungsstart abgelaufen sind, dann werden die
+//                      Werte adressbasiert ausgelesen (~5 ms je Sensor).
+//
+// Worst-Case-Loop-Block: ein einzelnes getTempC()-Read, also ~5–10 ms.
+// Das frühere blockierende sensors.requestTemperatures() (188 ms!) ist weg.
+
+static enum { TEMP_STATE_IDLE, TEMP_STATE_CONVERTING } tempState = TEMP_STATE_IDLE;
+static unsigned long tempConvStartMs = 0;
 
 void getTemp() {
-    if (millis() - previousTempCheckMillis < TEMP_CHECK_INTERVAL_MS) return;
-    previousTempCheckMillis = millis();
-    sensors.requestTemperatures();
-    tempC = sensors.getTempCByIndex(0);
-    if (tempC == DEVICE_DISCONNECTED_C) {
-        DBG_PRINTLN("Temperatursensor nicht erreichbar");
-        tempC = 0;
+    // Wenn weder Sensor 1 noch 2 aktiv und gefunden ist, gar nichts tun.
+    if (!tempSensor1Present && !tempSensor2Present) return;
+
+    if (tempState == TEMP_STATE_IDLE) {
+        if (millis() - previousTempCheckMillis < TEMP_CHECK_INTERVAL_MS) return;
+        previousTempCheckMillis = millis();
+        sensors.requestTemperatures();   // non-blocking durch setWaitForConversion(false)
+        tempConvStartMs = millis();
+        tempState = TEMP_STATE_CONVERTING;
+        return;
     }
+
+    // TEMP_STATE_CONVERTING
+    if (millis() - tempConvStartMs < TEMP_CONVERSION_WAIT_MS) return;
+
+    if (tempSensor1Present) {
+        float t = sensors.getTempC(tempAddr1);
+        tempC1 = (t == DEVICE_DISCONNECTED_C) ? 0.0f : t;
+    }
+    if (tempSensor2Present) {
+        float t = sensors.getTempC(tempAddr2);
+        tempC2 = (t == DEVICE_DISCONNECTED_C) ? 0.0f : t;
+    }
+    tempState = TEMP_STATE_IDLE;
 }

@@ -45,47 +45,54 @@ void handleMqttConfig() { serveFile("/mqtt_config.html", "text/html"); }
 // ========================= Daten-Endpunkte =========================
 
 void handleGetData() {
-    char buf[128] = {0};
-    char spd[8], soc[8], temp[8];
-    
-    // MUTEX FIX: Nicht endlos warten! Wenn Core 0 hängt, warten wir max 200ms. 
+    char buf[160] = {0};
+    char spd[8], soc[8], temp1[8], temp2[8];
+
+    // MUTEX FIX: Nicht endlos warten! Wenn Core 0 hängt, warten wir max 200ms.
     // So bleibt der Webserver immer responsiv und schließt den Socket schnell wieder.
     if (dataMutex != NULL && xSemaphoreTake(dataMutex, pdMS_TO_TICKS(200))) {
         dtostrf(currentSpeedKmh, 1, 1, spd);
         dtostrf(ve_soc_pct,      1, 1, soc);
-        dtostrf(tempC,           1, 1, temp);
-        snprintf(buf, sizeof(buf), "%s,%s,%d,%d,%d,%s,%d,%s,%d,%s",
+        dtostrf(tempC1,          1, 1, temp1);
+        dtostrf(tempC2,          1, 1, temp2);
+        // Felder 0..9 wie bisher (Frontend liest temp1 als v[9]); v[10] = temp2 neu am Ende.
+        snprintf(buf, sizeof(buf), "%s,%s,%d,%d,%d,%s,%d,%s,%d,%s,%s",
             spd, soc, drehzahlSollwert,
             drehrichtungF ? 1 : 0, drehrichtungR ? 1 : 0,
             ve_strom_mA_buf, drehzahlIstwert, ve_spannung_mV_buf,
-            deadmanSwitchActive ? 1 : 0, temp
+            deadmanSwitchActive ? 1 : 0, temp1, temp2
         );
         xSemaphoreGive(dataMutex);
     } else {
         // Fallback, falls Mutex blockiert ist (Sichere Standardwerte senden)
-        strlcpy(buf, "0.0,0.0,0,1,0,N/A,0,N/A,0,0.0", sizeof(buf)); 
+        strlcpy(buf, "0.0,0.0,0,1,0,N/A,0,N/A,0,0.0,0.0", sizeof(buf));
     }
-    
+
     wsNoKeepAlive();
     server.send(200, "text/plain", buf);
 }
 
 void handleGetConfig() {
-    char json[192], wcirc[10];
-    
+    char json[256], wcirc[10];
+
     if (dataMutex != NULL && xSemaphoreTake(dataMutex, pdMS_TO_TICKS(200))) {
         dtostrf(WHEEL_CIRCUMFERENCE_M, 1, 3, wcirc);
         snprintf(json, sizeof(json),
             "{\"schrittweite\":%d,\"rampdelay\":%d,\"wheelcirc\":%s,"
-            "\"pulsesperrev\":%d,\"hornshort\":%lu,\"hornmax\":%lu,\"mbuttonlong\":%lu}",
+            "\"pulsesperrev\":%d,\"hornshort\":%lu,\"hornmax\":%lu,\"mbuttonlong\":%lu,"
+            "\"temp1\":%s,\"temp2\":%s,\"temp1present\":%s,\"temp2present\":%s}",
             drehzahlSchrittweite, rampDelay, wcirc, PULSES_PER_REVOLUTION,
-            hornShortPressDurationMs, hornMaxPressDurationMs, mButtonLongPressDurationMs
+            hornShortPressDurationMs, hornMaxPressDurationMs, mButtonLongPressDurationMs,
+            tempSensor1Enabled ? "true" : "false",
+            tempSensor2Enabled ? "true" : "false",
+            tempSensor1Present ? "true" : "false",
+            tempSensor2Present ? "true" : "false"
         );
         xSemaphoreGive(dataMutex);
     } else {
         strlcpy(json, "{}", sizeof(json));
     }
-    
+
     wsNoKeepAlive();
     server.send(200, "application/json", json);
 }
@@ -178,6 +185,24 @@ void handleSaveConfig() {
         if (hornMaxPressDurationMs < hornShortPressDurationMs) {
             hornMaxPressDurationMs = hornShortPressDurationMs;
             EEPROM.put(EEPROM_HORN_MAX_DURATION_ADDR, hornMaxPressDurationMs);
+        }
+        // Temperatursensor-Toggles. Erst nach Reboot greift die Hardware-
+        // Initialisierung (sensors.begin()), darum hier nur EEPROM aktualisieren.
+        if (server.hasArg("tempSensor1")) {
+            bool v = (server.arg("tempSensor1") == "1" || server.arg("tempSensor1") == "true");
+            if (v != tempSensor1Enabled) {
+                tempSensor1Enabled = v;
+                EEPROM.write(EEPROM_TEMP_SENSOR1_ENABLED_ADDR, v ? 1 : 0);
+                changed = true;
+            }
+        }
+        if (server.hasArg("tempSensor2")) {
+            bool v = (server.arg("tempSensor2") == "1" || server.arg("tempSensor2") == "true");
+            if (v != tempSensor2Enabled) {
+                tempSensor2Enabled = v;
+                EEPROM.write(EEPROM_TEMP_SENSOR2_ENABLED_ADDR, v ? 1 : 0);
+                changed = true;
+            }
         }
         if (changed) EEPROM.commit();
         
