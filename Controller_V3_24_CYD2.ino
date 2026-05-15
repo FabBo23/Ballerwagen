@@ -138,6 +138,12 @@ volatile bool          mButtonLongPressActionDone = false;
 volatile bool deadmanSwitchActive = false;
 bool          wifiSTAConnected    = false;
 
+// --- WiFi-Manager (persistente Zugangsdaten + Reconnect-State) ---
+char          wifiSSID[33]        = {0};
+char          wifiPass[65]        = {0};
+bool          wifiHasCredentials  = false;
+bool          wifiApActive        = false;
+
 // --- WebServer ---
 WebServer server(80);
 
@@ -161,6 +167,7 @@ void mqttTaskCode(void * pvParameters) {
   DBG_PRINTLN(xPortGetCoreID());
 
   for(;;) {
+    manageWifi();   // STA-Reconnect / AP-Fallback (hat eigenen 60s-Timer)
     manageMqtt();
     vTaskDelay(10 / portTICK_PERIOD_MS);
   }

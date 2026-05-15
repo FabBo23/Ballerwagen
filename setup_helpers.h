@@ -23,71 +23,128 @@ void setupLittleFS() {
 // Verbindet mit gespeichertem Heimnetz (STA Modus).
 // Startet nur den eigenen Hotspot (AP) als Fallback, falls Verbindung fehlschlägt.
 
+// Startet mDNS (idempotent: vorher beenden falls schon aktiv).
+static void startMdns() {
+    MDNS.end();
+    if (MDNS.begin(MDNS_HOSTNAME)) {
+        MDNS.addService("http", "tcp", 80);
+        DBG_PRINT("mDNS: "); DBG_PRINT(MDNS_HOSTNAME); DBG_PRINTLN(".local");
+    } else {
+        DBG_PRINTLN("mDNS-Start fehlgeschlagen.");
+    }
+}
+
 void setupWifi() {
     esp_wifi_set_ps(WIFI_PS_NONE);   // Powersave aus → stabile TCP-Latenzen
     WiFi.setAutoReconnect(true);
 
     // --- BUGFIX: ESP32 NVS (Flash) Bereinigung ---
     // Der ESP32 merkt sich oft den letzten Modus und startet den AP heimlich im Hintergrund.
-    // Das hier zwingt ihn vor jedem Verbindungsversuch rigoros in den reinen Client-Modus.
     WiFi.disconnect();
     WiFi.softAPdisconnect(true);
     WiFi.mode(WIFI_STA);
     delay(100);
 
-    char storedSSID[33] = {0};
-    char storedPass[65] = {0};
-    for (int i=0;i<32;i++) storedSSID[i] = (char)EEPROM.read(EEPROM_WIFI_SSID_ADDR+i);
-    for (int i=0;i<64;i++) storedPass[i] = (char)EEPROM.read(EEPROM_WIFI_PASS_ADDR+i);
-    storedSSID[32] = storedPass[64] = '\0';
+    for (int i=0;i<32;i++) wifiSSID[i] = (char)EEPROM.read(EEPROM_WIFI_SSID_ADDR+i);
+    for (int i=0;i<64;i++) wifiPass[i] = (char)EEPROM.read(EEPROM_WIFI_PASS_ADDR+i);
+    wifiSSID[32] = wifiPass[64] = '\0';
 
-    bool hasCredentials = (strlen(storedSSID) > 0 && storedSSID[0] != (char)0xFF);
+    wifiHasCredentials = (strlen(wifiSSID) > 0 && wifiSSID[0] != (char)0xFF);
 
-    if (hasCredentials) {
-        DBG_PRINT("WLAN: Verbinde mit \""); DBG_PRINT(storedSSID); DBG_PRINTLN("\"...");
-
-        // NUR Station-Modus aktivieren, um Verbindungsversuch zu starten (kein AP)
-        WiFi.mode(WIFI_STA);
-        WiFi.begin(storedSSID, storedPass);
-
-        int attempts = 0;
-        while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-            delay(500); DBG_PRINT("."); attempts++;
-        }
-
-        if (WiFi.status() == WL_CONNECTED) {
-            wifiSTAConnected = true;
-            DBG_PRINTLN("\nWLAN verbunden!");
-            DBG_PRINT("STA-IP: "); DBG_PRINTLN(WiFi.localIP());
-            // Zur Sicherheit nochmal AP explizit ausschalten
-            WiFi.mode(WIFI_STA);
-            WiFi.softAPdisconnect(true);
-
-            // mDNS: bollerwagen.local im Heimnetz
-            if (MDNS.begin(MDNS_HOSTNAME)) {
-                MDNS.addService("http", "tcp", 80);
-                DBG_PRINT("mDNS: "); DBG_PRINT(MDNS_HOSTNAME); DBG_PRINTLN(".local");
-            } else {
-                DBG_PRINTLN("mDNS-Start fehlgeschlagen.");
-            }
-        } else {
-            wifiSTAConnected = false;
-            DBG_PRINTLN("\nVerbindung fehlgeschlagen. Starte Access Point (Fallback).");
-
-            // Fallback: Nur AP-Modus, da Router nicht erreichbar
-            WiFi.disconnect(); // Alte STA-Versuche stoppen
-            WiFi.mode(WIFI_AP);
-            WiFi.softAP(AP_SSID, AP_PASSWORD);
-            DBG_PRINT("AP-IP: "); DBG_PRINTLN(WiFi.softAPIP());
-        }
-    } else {
-        // Keine Credentials vorhanden -> direkt in AP Modus
-        WiFi.disconnect();
+    if (!wifiHasCredentials) {
+        // Keine Zugangsdaten → reiner Hotspot
         WiFi.mode(WIFI_AP);
         WiFi.softAP(AP_SSID, AP_PASSWORD);
+        wifiApActive = true;
         DBG_PRINTLN("Keine WLAN-Zugangsdaten. Nur Hotspot.");
         DBG_PRINT("AP-IP: "); DBG_PRINTLN(WiFi.softAPIP());
+        return;
     }
+
+    DBG_PRINT("WLAN: Verbinde mit \""); DBG_PRINT(wifiSSID); DBG_PRINTLN("\"...");
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(wifiSSID, wifiPass);
+
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 20) {  // bis ~10 s warten
+        delay(500); DBG_PRINT("."); attempts++;
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+        wifiSTAConnected = true;
+        wifiApActive     = false;
+        DBG_PRINTLN("\nWLAN verbunden!");
+        DBG_PRINT("STA-IP: "); DBG_PRINTLN(WiFi.localIP());
+        WiFi.mode(WIFI_STA);
+        WiFi.softAPdisconnect(true);
+        startMdns();
+    } else {
+        // Router (noch) nicht erreichbar: AP-Fallback hochziehen, aber STA
+        // parallel weiter versuchen lassen (WIFI_AP_STA). manageWifi() pollt
+        // ab jetzt jede Minute und schaltet den AP ab sobald STA steht.
+        wifiSTAConnected = false;
+        WiFi.mode(WIFI_AP_STA);
+        WiFi.softAP(AP_SSID, AP_PASSWORD);
+        wifiApActive = true;
+        DBG_PRINTLN("\nWLAN nicht erreichbar → AP-Fallback, STA-Retry läuft.");
+        DBG_PRINT("AP-IP: "); DBG_PRINTLN(WiFi.softAPIP());
+    }
+}
+
+// Läuft im MQTT-Task (Core 0), prüft alle WIFI_RECONNECT_INTERVAL_MS.
+// Deckt beide Fälle ab:
+//  (a) Boot im AP-Modus weil Router noch nicht da war  → STA-Retry, AP-aus bei Erfolg
+//  (b) STA bricht im Betrieb weg (Router-Reboot, Funkloch, ESP-Auto-Reconnect
+//      versagt) → AP-Fallback hoch + STA-Retry → Recovery ohne Reboot
+// Eskalation: WLAN meldet OK aber MQTT bleibt minutenlang tot (verklemmter
+// TCP-Stack) → harter WLAN-Reconnect setzt den Netz-Stack zurück.
+void manageWifi() {
+    if (!wifiHasCredentials) return;   // ohne Zugangsdaten nur AP, nichts zu tun
+
+    static unsigned long lastCheck    = 0;
+    static unsigned long mqttDownSince = 0;
+    if (millis() - lastCheck < WIFI_RECONNECT_INTERVAL_MS) return;
+    lastCheck = millis();
+
+    bool staOk = (WiFi.status() == WL_CONNECTED);
+    wifiSTAConnected = staOk;
+
+    if (staOk) {
+        // STA steht. Falls AP-Fallback noch läuft → jetzt abschalten.
+        if (wifiApActive) {
+            WiFi.softAPdisconnect(true);
+            WiFi.mode(WIFI_STA);
+            wifiApActive = false;
+            startMdns();
+            DBG_PRINTLN("WLAN: STA verbunden, AP-Fallback abgeschaltet.");
+        }
+
+        // Eskalation: STA ok, aber MQTT seit Minuten tot → Stack-Reset
+        if (mqttEnabled && !mqttConnected) {
+            if (mqttDownSince == 0) {
+                mqttDownSince = millis();
+            } else if (millis() - mqttDownSince > WIFI_HARD_RESET_AFTER_MS) {
+                DBG_PRINTLN("WLAN: MQTT trotz STA tot → harter Reconnect (Stack-Reset).");
+                WiFi.disconnect();
+                delay(100);
+                WiFi.begin(wifiSSID, wifiPass);
+                mqttDownSince = 0;
+            }
+        } else {
+            mqttDownSince = 0;
+        }
+        return;
+    }
+
+    // STA NICHT verbunden → AP-Fallback sicherstellen + STA neu anstoßen
+    mqttDownSince = 0;
+    if (WiFi.getMode() != WIFI_AP_STA) {
+        WiFi.mode(WIFI_AP_STA);
+        WiFi.softAP(AP_SSID, AP_PASSWORD);
+        wifiApActive = true;
+        DBG_PRINTLN("WLAN: STA weg → AP-Fallback aktiv, versuche Reconnect.");
+    }
+    WiFi.begin(wifiSSID, wifiPass);
 }
 
 // ========================= Peripherie Setup =========================
