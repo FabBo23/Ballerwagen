@@ -124,8 +124,5 @@
 #define TEMP_CHECK_INTERVAL_MS  8000UL
 // WLAN-Manager: STA-Reconnect-Versuch jede Minute
 #define WIFI_RECONNECT_INTERVAL_MS   60000UL
-// Eskalation: WLAN meldet "verbunden", aber MQTT kommt 3 min nicht hoch
-// → TCP-Stack vermutlich verklemmt → harter WLAN-Reconnect (Stack-Reset)
-#define WIFI_HARD_RESET_AFTER_MS    180000UL
 // DS18B20 Conversion-Zeit @ 10-bit: 187,5 ms; +slack damit der erste read garantiert fertig ist
 #define TEMP_CONVERSION_WAIT_MS  220UL
