@@ -239,7 +239,11 @@ void setupMqtt() {
     mqttClient.setServer(mqttBroker, mqttPort);
     mqttClient.setCallback(mqttCallback);
     mqttClient.setKeepAlive(30);   // 30s → phantom-Connections werden in ~45s entdeckt
-    mqttClient.setBufferSize(512);
+    // 768 statt 512: das gebündelte hasp/.../command/json-Paket kann im
+    // Worst Case ~360 B (Topic+Payload+Header) werden. Mit Reserve, damit
+    // PubSubClient das Paket nie still verwirft (publish() würde sonst
+    // false liefern und das Display-Update verschlucken).
+    mqttClient.setBufferSize(768);
     DBG_PRINT("MQTT: Broker="); DBG_PRINT(mqttBroker);
     DBG_PRINT(":"); DBG_PRINT(mqttPort);
     DBG_PRINT("  Aktiviert="); DBG_PRINTLN(mqttEnabled ? "ja" : "nein");
