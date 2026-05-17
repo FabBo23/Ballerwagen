@@ -99,18 +99,62 @@ static inline void haspDE(bool tx) {
 // ========================= Senden =========================
 
 #if HASP_INTERFACE == HASP_IF_MQTT
-// MQTT-Topic für openHASP-Commands: hasp/<plate>/command
+// Einzel-Publish (für Setup-Befehle außerhalb eines Update-Zyklus)
 static void haspMqttPublish(const char* cmd) {
     if (!mqttConnected) return;  // ohne Broker geht nichts
-    char topic[40];
+    char topic[48];
     snprintf(topic, sizeof(topic), "hasp/%s/command", HASP_MQTT_PLATE);
     mqttClient.publish(topic, cmd);
+}
+
+// --- Command-Batching ---------------------------------------------------
+// Statt pro geändertem Wert ein eigenes MQTT-Paket (bis zu ~14 pro 500ms-
+// Zyklus, jedes ein blockierender TCP-Write auf Core 0 → verzögert das
+// Verarbeiten eingehender HA/BarBot-Befehle), werden alle Kommandos eines
+// Zyklus zu EINER Nachricht auf hasp/<plate>/command/json gebündelt
+// (JSON-Array von Command-Strings – stabiles, dokumentiertes openHASP-
+// Feature). Display-Inhalt bleibt identisch, nur 1 statt ~14 Pakete →
+// drastisch weniger Core-0-Blockierung, MQTT-Steuerung reagiert schneller.
+static char   haspBatch[640];
+static size_t haspBatchLen  = 0;
+static bool   haspBatchOpen = false;
+
+static void haspBatchBegin() {
+    haspBatchLen = 0;
+    haspBatch[haspBatchLen++] = '[';
+    haspBatchOpen = true;
+}
+
+static void haspBatchAdd(const char* cmd) {
+    // Unsere Command-Strings enthalten nie " oder \ (nur Zahlen, feste
+    // Bezeichner, Farb-Hex, "TOTMANN!") → kein JSON-Escaping nötig.
+    size_t clen = strlen(cmd);
+    // Reserve: evtl. ',' + '"' + cmd + '"' + späteres ']' + '\0'
+    if (haspBatchLen + clen + 5 >= sizeof(haspBatch)) return;  // Überlaufschutz
+    if (haspBatch[haspBatchLen - 1] != '[') haspBatch[haspBatchLen++] = ',';
+    haspBatch[haspBatchLen++] = '"';
+    memcpy(&haspBatch[haspBatchLen], cmd, clen);
+    haspBatchLen += clen;
+    haspBatch[haspBatchLen++] = '"';
+}
+
+static void haspBatchFlush() {
+    if (!haspBatchOpen) return;
+    haspBatchOpen = false;
+    if (haspBatchLen <= 1) return;            // nichts gesammelt → kein Paket
+    haspBatch[haspBatchLen++] = ']';
+    haspBatch[haspBatchLen]   = '\0';
+    if (!mqttConnected) return;
+    char topic[48];
+    snprintf(topic, sizeof(topic), "hasp/%s/command/json", HASP_MQTT_PLATE);
+    mqttClient.publish(topic, haspBatch);
 }
 #endif
 
 static void sendHasp(const char* cmd) {
 #if HASP_INTERFACE == HASP_IF_MQTT
-    haspMqttPublish(cmd);
+    if (haspBatchOpen) haspBatchAdd(cmd);    // innerhalb Update-Zyklus → bündeln
+    else               haspMqttPublish(cmd); // Setup-Befehle einzeln
 #else
     haspDE(true);
     HASP_PORT.print(cmd);
@@ -302,6 +346,10 @@ static void haspSendUpdate() {
     deadman_s = deadmanSwitchActive;
     xSemaphoreGive(dataMutex);
 
+#if HASP_INTERFACE == HASP_IF_MQTT
+    haspBatchBegin();   // alle folgenden sendHasp() sammeln in 1 Paket
+#endif
+
     char tmp[56];
 
     if (fabsf(speed_s - hasp_prev_speed) >= 0.1f) {
@@ -351,6 +399,10 @@ static void haspSendUpdate() {
             sendHasp("p1b12.text_color=#ffffff");
         }
     }
+
+#if HASP_INTERFACE == HASP_IF_MQTT
+    haspBatchFlush();   // gesammelte Kommandos als EIN MQTT-Paket senden
+#endif
 }
 
 // ========================= Öffentliche API =========================
