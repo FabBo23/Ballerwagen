@@ -77,6 +77,9 @@ void setupWifi() {
         DBG_PRINT("STA-IP: "); DBG_PRINTLN(WiFi.localIP());
         WiFi.mode(WIFI_STA);
         WiFi.softAPdisconnect(true);
+        WiFi.setSleep(false);   // Modem-Sleep AUS – muss NACH dem Connect
+                                // gesetzt werden, sonst träges erstes Paket
+                                // nach Funkstille (Radio muss erst aufwachen).
         startMdns();
     } else {
         // Router (noch) nicht erreichbar: AP-Fallback hochziehen, aber STA
@@ -117,6 +120,10 @@ void manageWifi() {
     if (staOk) {
         if (!prevStaOk) {
             // War weg, ist wieder da → mDNS neu binden (netif war unten)
+            // und Modem-Sleep erneut abschalten: WiFi.disconnect()/begin()
+            // im Reconnect setzt den Power-Save sonst auf Default zurück
+            // → sonst wieder träges erstes Paket nach Funkstille.
+            WiFi.setSleep(false);
             startMdns();
             DBG_PRINTLN("WLAN: STA wieder verbunden.");
         }
