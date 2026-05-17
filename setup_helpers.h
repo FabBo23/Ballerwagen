@@ -85,6 +85,7 @@ void setupWifi() {
         wifiSTAConnected = false;
         WiFi.mode(WIFI_AP_STA);
         WiFi.softAP(AP_SSID, AP_PASSWORD);
+        WiFi.begin(wifiSSID, wifiPass);   // STA-Versuch im Hintergrund weiterlaufen lassen
         wifiApActive = true;
         DBG_PRINTLN("\nWLAN nicht erreichbar → AP-Fallback, STA-Retry läuft.");
         DBG_PRINT("AP-IP: "); DBG_PRINTLN(WiFi.softAPIP());
@@ -92,17 +93,21 @@ void setupWifi() {
 }
 
 // Läuft im MQTT-Task (Core 0), prüft alle WIFI_RECONNECT_INTERVAL_MS.
-// Deckt beide Fälle ab:
-//  (a) Boot im AP-Modus weil Router noch nicht da war  → STA-Retry, AP-aus bei Erfolg
-//  (b) STA bricht im Betrieb weg (Router-Reboot, Funkloch, ESP-Auto-Reconnect
-//      versagt) → AP-Fallback hoch + STA-Retry → Recovery ohne Reboot
-// Eskalation: WLAN meldet OK aber MQTT bleibt minutenlang tot (verklemmter
-// TCP-Stack) → harter WLAN-Reconnect setzt den Netz-Stack zurück.
+//
+// WICHTIG: Bei gesunder STA-Verbindung wird NICHTS am WLAN angefasst.
+// Im normalen STA-Drop-Fall wird KEIN AP hochgezogen und KEIN Mode-Switch
+// gemacht (das reinitialisiert den Netz-Stack und zerschießt die offenen
+// WebServer-Sockets!) – nur ein sauberer STA-Reconnect im reinen STA-Modus.
+//
+// AP-Fallback (WIFI_AP_STA) gibt es ausschließlich im expliziten Boot-
+// Szenario: Router war beim Start nicht erreichbar (wifiApActive == true
+// aus setupWifi). Nur dann wird die kurze AP-Störung durch den STA-Scan
+// in Kauf genommen, damit das Gerät überhaupt erreichbar bleibt.
 void manageWifi() {
     if (!wifiHasCredentials) return;   // ohne Zugangsdaten nur AP, nichts zu tun
 
-    static unsigned long lastCheck    = 0;
-    static unsigned long mqttDownSince = 0;
+    static unsigned long lastCheck = 0;
+    static bool          prevStaOk = true;
     if (millis() - lastCheck < WIFI_RECONNECT_INTERVAL_MS) return;
     lastCheck = millis();
 
@@ -110,41 +115,40 @@ void manageWifi() {
     wifiSTAConnected = staOk;
 
     if (staOk) {
-        // STA steht. Falls AP-Fallback noch läuft → jetzt abschalten.
+        if (!prevStaOk) {
+            // War weg, ist wieder da → mDNS neu binden (netif war unten)
+            startMdns();
+            DBG_PRINTLN("WLAN: STA wieder verbunden.");
+        }
         if (wifiApActive) {
+            // Boot-AP-Fallback nicht mehr nötig → abschalten
             WiFi.softAPdisconnect(true);
             WiFi.mode(WIFI_STA);
             wifiApActive = false;
             startMdns();
-            DBG_PRINTLN("WLAN: STA verbunden, AP-Fallback abgeschaltet.");
+            DBG_PRINTLN("WLAN: AP-Fallback abgeschaltet.");
         }
-
-        // Eskalation: STA ok, aber MQTT seit Minuten tot → Stack-Reset
-        if (mqttEnabled && !mqttConnected) {
-            if (mqttDownSince == 0) {
-                mqttDownSince = millis();
-            } else if (millis() - mqttDownSince > WIFI_HARD_RESET_AFTER_MS) {
-                DBG_PRINTLN("WLAN: MQTT trotz STA tot → harter Reconnect (Stack-Reset).");
-                WiFi.disconnect();
-                delay(100);
-                WiFi.begin(wifiSSID, wifiPass);
-                mqttDownSince = 0;
-            }
-        } else {
-            mqttDownSince = 0;
-        }
-        return;
+        prevStaOk = true;
+        return;   // gesunde Verbindung NICHT anfassen
     }
 
-    // STA NICHT verbunden → AP-Fallback sicherstellen + STA neu anstoßen
-    mqttDownSince = 0;
-    if (WiFi.getMode() != WIFI_AP_STA) {
-        WiFi.mode(WIFI_AP_STA);
-        WiFi.softAP(AP_SSID, AP_PASSWORD);
-        wifiApActive = true;
-        DBG_PRINTLN("WLAN: STA weg → AP-Fallback aktiv, versuche Reconnect.");
+    // ---- STA NICHT verbunden ----
+    prevStaOk = false;
+
+    if (wifiApActive) {
+        // Boot-Fallback-Szenario: Gerät bleibt über den Hotspot erreichbar,
+        // STA-Retry im AP_STA-Modus (kurze AP-Störung während des Scans).
+        WiFi.begin(wifiSSID, wifiPass);
+        DBG_PRINTLN("WLAN: AP-Fallback aktiv, STA-Retry...");
+    } else {
+        // Normalbetrieb war STA-only und ist weggebrochen → harter, sauberer
+        // Reconnect OHNE softAP/Mode-Switch. Es gibt keinen AP der gestört
+        // werden könnte, der Webserver war wegen STA-Verlust ohnehin tot –
+        // das hier ist reine Recovery, jede Minute wiederholt bis es klappt.
+        WiFi.disconnect();
+        WiFi.begin(wifiSSID, wifiPass);
+        DBG_PRINTLN("WLAN: STA weg → harter Reconnect (STA-only, kein AP).");
     }
-    WiFi.begin(wifiSSID, wifiPass);
 }
 
 // ========================= Peripherie Setup =========================
